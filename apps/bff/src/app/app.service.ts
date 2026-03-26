@@ -1,11 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { PORT } from '@libs/constants';
+import { PORT } from '@libs/constants/env.constant';
 
 @Injectable()
 export class AppService {
   getData(): { message: string } {
-    console.log('PORT ', PORT);
-
-    return { message: 'Hello API' };
+    return { message: `Hello API on port ${PORT}` };
   }
 }
