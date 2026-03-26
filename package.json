@@ -8,8 +8,8 @@
     },
     "lint-staged": {
         "*.{ts,tsx,js,jsx,json,md,css}": [
-            "pnpm format",
-            "git add"
+            "eslint --fix",
+            "pnpm format"
         ]
     },
     "private": true,
@@ -45,6 +45,7 @@
         "jest": "^30.0.2",
         "jest-environment-node": "^30.0.2",
         "jest-util": "^30.0.2",
+        "lint-staged": "^16.4.0",
         "nx": "22.6.1",
         "prettier": "~3.6.2",
         "ts-jest": "^29.4.0",
