@@ -1,4 +1,7 @@
+import { IsString } from 'class-validator'
+
 export default class BffConfiguration {
+    @IsString()
     TEST_CONFIG: string
 
     constructor() {
