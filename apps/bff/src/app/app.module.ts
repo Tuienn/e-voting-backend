@@ -2,7 +2,7 @@ import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/c
 import { AppController } from './app.controller'
 import { AppService } from './app.service'
 import { ConfigModule } from '@nestjs/config'
-import CONFIGURATION, { TConfiguration } from '../configuration'
+import { CONFIGURATION, TConfiguration } from '../configuration'
 import { HttpLoggerMiddleware } from '@libs/middlewares/logger.middleware'
 
 @Module({

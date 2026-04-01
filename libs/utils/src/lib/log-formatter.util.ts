@@ -1,11 +1,4 @@
-interface UploadedFile {
-    originalname: string
-    mimetype: string
-    size: number
-    encoding: string
-}
-
-type UploadedFiles = UploadedFile[] | UploadedFile | Record<string, UploadedFile[] | UploadedFile>
+import { UploadedFileLog, UploadedFilesLog } from '@libs/types/logger.type'
 
 export class LogFormatter {
     /**
@@ -13,7 +6,7 @@ export class LogFormatter {
      * - JSON: parse và giới hạn độ sâu
      * - File: chỉ log metadata, không log content
      */
-    static formatBody(body: unknown, files?: UploadedFiles): unknown {
+    static formatBody(body: unknown, files?: UploadedFilesLog): unknown {
         // Trường hợp có file upload (multipart/form-data)
         const normalizedFiles = this.normalizeUploadedFiles(files)
         if (Object.keys(normalizedFiles).length > 0) {
@@ -32,15 +25,16 @@ export class LogFormatter {
             return { _files: fileMeta, _body: body }
         }
 
-        // Trường hợp JSON body - tránh circular reference & giới hạn depth
+        // Trường hợp JSON body - tránh circular reference & giới hạn depth, kèm mask field nhạy cảm
         try {
-            return this.safeStringify(body, 3) // Max depth = 3
+            const masked = this.maskSensitiveFields(body)
+            return this.safeStringify(masked, 3) // Max depth = 3
         } catch {
             return '[Unserializable body]'
         }
     }
 
-    private static normalizeUploadedFiles(files?: UploadedFiles): Record<string, UploadedFile[]> {
+    private static normalizeUploadedFiles(files?: UploadedFilesLog): Record<string, UploadedFileLog[]> {
         if (!files) return {}
 
         if (Array.isArray(files)) {
@@ -51,7 +45,7 @@ export class LogFormatter {
             return { file: [files] }
         }
 
-        const normalized: Record<string, UploadedFile[]> = {}
+        const normalized: Record<string, UploadedFileLog[]> = {}
         Object.entries(files).forEach(([fieldName, fileData]) => {
             if (Array.isArray(fileData)) {
                 if (fileData.length > 0) normalized[fieldName] = fileData
@@ -66,10 +60,37 @@ export class LogFormatter {
         return normalized
     }
 
-    private static isUploadedFile(value: unknown): value is UploadedFile {
+    private static maskSensitiveFields(body: unknown): unknown {
+        const sensitiveKeys = ['password', 'pwd', 'secret', 'token', 'accessToken', 'refreshToken', 'authorization']
+
+        const helper = (value: unknown): unknown => {
+            if (value === null || typeof value !== 'object') return value
+
+            if (Array.isArray(value)) {
+                return value.map((v) => helper(v))
+            }
+
+            const obj = value as Record<string, unknown>
+            const result: Record<string, unknown> = {}
+
+            Object.entries(obj).forEach(([key, val]) => {
+                if (sensitiveKeys.some((k) => key.toLowerCase().includes(k.toLowerCase()))) {
+                    result[key] = '[REDACTED]'
+                } else {
+                    result[key] = helper(val)
+                }
+            })
+
+            return result
+        }
+
+        return helper(body)
+    }
+
+    private static isUploadedFile(value: unknown): value is UploadedFileLog {
         if (!value || typeof value !== 'object') return false
 
-        const candidate = value as Partial<UploadedFile>
+        const candidate = value as Partial<UploadedFileLog>
         return (
             typeof candidate.originalname === 'string' &&
             typeof candidate.mimetype === 'string' &&

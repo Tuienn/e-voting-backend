@@ -18,7 +18,8 @@
             "@libs/constants/*": ["libs/constants/src/lib*"],
             "@libs/configuration/*": ["libs/configuration/src/lib/*"],
             "@libs/middlewares/*": ["libs/middlewares/src/lib/*"],
-            "@libs/utils/*": ["libs/utils/src/lib/*"]
+            "@libs/utils/*": ["libs/utils/src/lib/*"],
+            "@libs/types/*": ["libs/types/src/lib/*"]
         }
     },
     "exclude": ["node_modules", "tmp"]

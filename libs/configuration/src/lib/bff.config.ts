@@ -1,6 +1,6 @@
 import { IsString } from 'class-validator'
 
-export default class BffConfiguration {
+export class BffConfiguration {
     @IsString()
     TEST_CONFIG: string
 

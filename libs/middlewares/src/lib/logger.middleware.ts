@@ -1,22 +1,14 @@
 import { LogFormatter } from '@libs/utils/log-formatter.util'
+import { UploadedFileLog, UploadedFilesLog } from '@libs/types/logger.type'
 // src/common/middleware/http-logger.middleware.ts
 import { Injectable, NestMiddleware, Logger } from '@nestjs/common'
 import { Request, Response, NextFunction } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 
-interface UploadedFile {
-    originalname: string
-    mimetype: string
-    size: number
-    encoding: string
-}
-
-type UploadedFiles = UploadedFile[] | Record<string, UploadedFile[]>
-
 interface RequestWithLogMeta extends Request {
     processId?: string
-    files?: UploadedFiles
-    file?: UploadedFile
+    files?: UploadedFilesLog
+    file?: UploadedFileLog
 }
 
 interface HttpLogEntry {
@@ -82,23 +74,36 @@ export class HttpLoggerMiddleware implements NestMiddleware {
             captureChunk(args[0])
 
             const duration = Date.now() - startTime
-            const responseBody = Buffer.concat(chunks).toString('utf8')
 
-            // Parse response body nếu là JSON
+            const contentTypeHeader = res.getHeader('content-type') as string | undefined
+            const rawBuffer = Buffer.concat(chunks)
+
             let parsedBody: unknown
-            try {
-                const contentType = res.getHeader('content-type') as string
-                if (contentType?.includes('application/json')) {
-                    parsedBody = JSON.parse(responseBody)
-                } else {
-                    parsedBody = responseBody.substring(0, 500) // Giới hạn độ dài
+            if (!rawBuffer.length) {
+                parsedBody = null
+            } else if (contentTypeHeader?.includes('application/json')) {
+                try {
+                    parsedBody = JSON.parse(rawBuffer.toString('utf8'))
+                } catch {
+                    parsedBody = '[Invalid JSON response]'
                 }
-            } catch {
-                parsedBody = responseBody.substring(0, 500)
+            } else if (
+                contentTypeHeader &&
+                (contentTypeHeader.startsWith('image/') ||
+                    contentTypeHeader.includes('application/pdf') ||
+                    contentTypeHeader.includes('application/octet-stream'))
+            ) {
+                parsedBody = {
+                    type: contentTypeHeader,
+                    length: rawBuffer.length
+                }
+            } else {
+                const text = rawBuffer.toString('utf8')
+                parsedBody = text.length > 500 ? `${text.substring(0, 500)}...[truncated]` : text
             }
 
-            // Format request body (handle file upload)
-            const files = request.files ?? (request.file ? [request.file] : undefined)
+            // Format request body (handle file upload) - đồng bộ kiểu với LogFormatter
+            const files = request.files ?? request.file
             const formattedReqBody = LogFormatter.formatBody(req.body, files)
 
             // Log theo format trực quan
@@ -158,11 +163,11 @@ ${cyan('🔍 HTTP LOG')} ${gray(`[${log.processId.slice(0, 8)}]`)}
 ${gray('────────────────────────────────────')}
 ⏱️  ${gray('Duration:')} ${green(log.duration)}
 📥 ${gray('Request:')} ${magenta(log.request.method)} ${log.request.url}
-${gray('   Body:')} ${formatLogValue(log.request.body)
+${gray('   Body:')}${formatLogValue(log.request.body)
                 .split('\n')
                 .map((l) => '   ' + l)
                 .join('\n')}
-📤 ${gray('Response:')} ${this.getStatusCodeColor(log.response.statusCode)}${log.response.statusCode}${gray(' -')} ${formatLogValue(
+📤 ${gray('Response:')} ${this.getStatusCodeColor(log.response.statusCode)}${log.response.statusCode}${gray(' -')}${formatLogValue(
                 log.response.body
             )
                 .split('\n')

@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common'
 import { IsNotEmpty, IsNumber, IsString, validateSync } from 'class-validator'
 
-export default class BaseConfiguration {
+export class BaseConfiguration {
     @IsString()
     NODE_ENV: string
 
