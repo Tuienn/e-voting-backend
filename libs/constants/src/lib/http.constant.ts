@@ -1,4 +1,4 @@
-export const HTTP_MESSAGES = {
+export const HTTP_MESSAGE_TITLES = {
     //NOTE -  1xx - Thông tin, request đã được nhận và đang tiếp tục xử lý
 
     /**
