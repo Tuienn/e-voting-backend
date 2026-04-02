@@ -19,7 +19,8 @@
             "@libs/configuration/*": ["libs/configuration/src/lib/*"],
             "@libs/middlewares/*": ["libs/middlewares/src/lib/*"],
             "@libs/utils/*": ["libs/utils/src/lib/*"],
-            "@libs/types/*": ["libs/types/src/lib/*"]
+            "@libs/types/*": ["libs/types/src/lib/*"],
+            "@libs/interceptors/*": ["libs/interceptors/src/lib/*"]
         }
     },
     "exclude": ["node_modules", "tmp"]

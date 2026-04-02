@@ -1,8 +1,7 @@
 import { LogFormatter } from '@libs/utils/log-formatter.util'
 import { UploadedFileLog, UploadedFilesLog } from '@libs/types/logger.type'
-// src/common/middleware/http-logger.middleware.ts
-import { Injectable, NestMiddleware, Logger } from '@nestjs/common'
-import { Request, Response, NextFunction } from 'express'
+import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from '@nestjs/common'
+import { Request, Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 
 interface RequestWithLogMeta extends Request {
@@ -30,21 +29,35 @@ interface HttpLogEntry {
 }
 
 @Injectable()
-export class HttpLoggerMiddleware implements NestMiddleware {
-    private readonly logger = new Logger(HttpLoggerMiddleware.name)
+export class HttpLoggerInterceptor implements NestInterceptor {
+    private readonly logger = new Logger(HttpLoggerInterceptor.name)
 
-    use(req: Request, res: Response, next: NextFunction) {
+    intercept(context: ExecutionContext, next: CallHandler) {
+        if (context.getType() !== 'http') {
+            return next.handle()
+        }
+
+        const httpContext = context.switchToHttp()
+        const req = httpContext.getRequest<Request>()
+        const res = httpContext.getResponse<Response>()
         const request = req as RequestWithLogMeta
         const processId = req.headers['x-request-id']?.toString() || uuidv4()
         const startTime = Date.now()
 
-        // Inject processId vào request để dùng ở nơi khác (controller, service)
         request.processId = processId
 
-        // Capture response body bằng cách override write/end
         const chunks: Buffer[] = []
         const originalWrite = res.write.bind(res)
         const originalEnd = res.end.bind(res)
+        let restored = false
+
+        const restoreResponseMethods = () => {
+            if (restored) return
+
+            res.write = originalWrite as typeof res.write
+            res.end = originalEnd as typeof res.end
+            restored = true
+        }
 
         const captureChunk = (chunk: unknown) => {
             if (chunk === undefined || chunk === null) return
@@ -102,11 +115,9 @@ export class HttpLoggerMiddleware implements NestMiddleware {
                 parsedBody = text.length > 500 ? `${text.substring(0, 500)}...[truncated]` : text
             }
 
-            // Format request body (handle file upload) - đồng bộ kiểu với LogFormatter
             const files = request.files ?? request.file
             const formattedReqBody = LogFormatter.formatBody(req.body, files)
 
-            // Log theo format trực quan
             const logEntry: HttpLogEntry = {
                 processId,
                 timestamp: {
@@ -125,18 +136,22 @@ export class HttpLoggerMiddleware implements NestMiddleware {
                 }
             }
 
-            // Dùng màu sắc để dễ đọc (chỉ khi dev)
             if (process.env['NODE_ENV'] !== 'production') {
                 this.prettyPrint(logEntry)
             } else {
-                // Production: log JSON để dễ parse bằng log aggregator
                 this.logger.log(JSON.stringify(logEntry))
             }
 
-            return originalEnd(...args)
+            const result = originalEnd(...args)
+            restoreResponseMethods()
+
+            return result
         }) as typeof res.end
 
-        next()
+        res.once('finish', restoreResponseMethods)
+        res.once('close', restoreResponseMethods)
+
+        return next.handle()
     }
 
     /**
@@ -174,14 +189,14 @@ ${gray('   Body:')}${formatLogValue(log.request.body)
                 .map((l) => '   ' + l)
                 .join('\n')}
 ${gray('════════════════════════════════════════')}
-    `.trim()
+	`.trim()
         )
     }
 
     private getStatusCodeColor(code: number): string {
-        if (code >= 500) return '\x1b[31m' // Red
-        if (code >= 400) return '\x1b[33m' // Yellow
-        if (code >= 300) return '\x1b[36m' // Cyan
-        return '\x1b[32m' // Green
+        if (code >= 500) return '\x1b[31m'
+        if (code >= 400) return '\x1b[33m'
+        if (code >= 300) return '\x1b[36m'
+        return '\x1b[32m'
     }
 }
