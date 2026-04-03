@@ -12,12 +12,18 @@ export class ExceptionInterceptor implements NestInterceptor {
 
         return next.handle().pipe(
             catchError((error) => {
-                const message = error.message || HTTP_MESSAGE_TITLES.INTERNAL_SERVER_ERROR
-                const statusCode = error.statusCode || error.code || HttpStatus.INTERNAL_SERVER_ERROR
+                const statusCode =
+                    error instanceof HttpException
+                        ? error.getStatus()
+                        : (error.statusCode ?? error.code ?? HttpStatus.INTERNAL_SERVER_ERROR)
+                const title =
+                    HTTP_MESSAGE_TITLES[HttpStatus[statusCode] as keyof typeof HTTP_MESSAGE_TITLES] ||
+                    HTTP_MESSAGE_TITLES.INTERNAL_SERVER_ERROR
+                const message = error.message || title
 
                 throw new HttpException(
                     new ResponseDto({
-                        title: HTTP_MESSAGE_TITLES.INTERNAL_SERVER_ERROR,
+                        title,
                         message,
                         statusCode,
                         data: null

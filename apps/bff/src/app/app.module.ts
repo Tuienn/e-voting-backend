@@ -6,6 +6,7 @@ import { CONFIGURATION, TConfiguration } from '../configuration'
 import { APP_INTERCEPTOR } from '@nestjs/core'
 import { HttpLoggerInterceptor } from '@libs/interceptors/logger.interceptor'
 import { ExceptionInterceptor } from '@libs/interceptors/exception.interceptor'
+import { TimeoutInterceptor } from '@libs/interceptors/timeout.interceptor'
 
 @Module({
     imports: [ConfigModule.forRoot({ load: [() => CONFIGURATION] })],
@@ -19,6 +20,10 @@ import { ExceptionInterceptor } from '@libs/interceptors/exception.interceptor'
         {
             provide: APP_INTERCEPTOR,
             useClass: ExceptionInterceptor
+        },
+        {
+            provide: APP_INTERCEPTOR,
+            useClass: TimeoutInterceptor
         }
     ]
 })
