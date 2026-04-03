@@ -4,7 +4,7 @@ import { ApiProperty } from '@nestjs/swagger'
 
 export class ResponseDto<T> {
     @ApiProperty({ type: 'string', example: HTTP_MESSAGE_TITLES.OK })
-    title: string
+    title?: string
 
     @ApiProperty({ type: 'string', example: 'OK' })
     message?: string
@@ -16,7 +16,9 @@ export class ResponseDto<T> {
     statusCode: number
 
     constructor(data: Partial<ResponseDto<T>>) {
-        this.title = data.title || 'OK'
+        this.title =
+            data.title ||
+            HTTP_MESSAGE_TITLES[HttpStatus[data.statusCode ?? HttpStatus.OK] as keyof typeof HTTP_MESSAGE_TITLES]
         this.message = data.message || this.title
         this.data = data.data
         this.statusCode = data.statusCode || HttpStatus.OK

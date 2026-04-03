@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common'
+import { Controller, Get, HttpStatus } from '@nestjs/common'
 import { AppService } from './app.service'
 import { ResponseDto } from '@libs/types/response.dto'
 @Controller()
@@ -9,6 +9,6 @@ export class AppController {
     getData() {
         const result = this.appService.getData()
 
-        return new ResponseDto({ data: result })
+        return new ResponseDto({ data: result, statusCode: HttpStatus.CREATED })
     }
 }
