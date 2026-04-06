@@ -1,10 +1,14 @@
-import { IsString } from 'class-validator'
+import { IsNumber, IsString } from 'class-validator'
 
 export class BffConfiguration {
     @IsString()
-    TEST_CONFIG: string
+    TCP_HOST: string
+
+    @IsNumber()
+    TCP_PORT: number
 
     constructor() {
-        this.TEST_CONFIG = process.env['TEST_CONFIG'] || 'test config value'
+        this.TCP_HOST = process.env['TCP_HOST'] || 'localhost'
+        this.TCP_PORT = Number(process.env['TCP_PORT']) || 3001
     }
 }

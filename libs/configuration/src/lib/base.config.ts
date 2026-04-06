@@ -8,7 +8,7 @@ export class BaseConfiguration {
     IS_DEV: boolean
 
     @IsNumber()
-    PORT: number
+    HTTP_PORT: number
 
     @IsString()
     @IsNotEmpty()
@@ -18,7 +18,7 @@ export class BaseConfiguration {
         // Phần kiểm tra bên trên bằng class-validator có thể không cần dùng vì đang phần đã có giá trị mặc định, nhưng vẫn giữ để đảm bảo tính toàn vẹn của cấu hình
         this.NODE_ENV = process.env['NODE_ENV'] || 'development'
         this.IS_DEV = this.NODE_ENV === 'development'
-        this.PORT = Number(process.env['PORT']) || 3000
+        this.HTTP_PORT = Number(process.env['HTTP_PORT']) || 3000
         this.GLOBAL_PREFIX = process.env['GLOBAL_PREFIX'] || 'api/v1'
     }
 
