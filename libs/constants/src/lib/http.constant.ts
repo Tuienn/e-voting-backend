@@ -467,3 +467,29 @@ export const HTTP_MESSAGE_TITLES = {
     //NOTE - 508
     LOOP_DETECTED: 'Loop Detected'
 } as const
+
+//NOTE - Danh sách các exception phổ biến trong NestJS để tham chiếu khi cần thiết
+/**
+ *  BadGatewayException
+    BadRequestException
+    ConflictException
+    ForbiddenException
+    GatewayTimeoutException
+    GoneException
+    HttpVersionNotSupportedException
+    HttpException
+    ImATeapotException
+    InternalServerErrorException
+    IntrinsicException
+    MethodNotAllowedException
+    MisdirectedException
+    NotAcceptableException
+    NotFoundException
+    NotImplementedException
+    PayloadTooLargeException
+    PreconditionFailedException
+    RequestTimeoutException
+    ServiceUnavailableException
+    UnauthorizedException
+    UnsupportedMediaTypeException
+ */

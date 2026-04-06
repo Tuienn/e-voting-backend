@@ -9,6 +9,6 @@ export class AppController {
     getData() {
         const result = this.appService.getData()
 
-        return new ResponseDto({ data: result, statusCode: HttpStatus.CREATED })
+        return new ResponseDto({ data: result, statusCode: HttpStatus.OK, message: 'Data retrieved successfully' })
     }
 }
