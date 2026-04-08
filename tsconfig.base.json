@@ -15,7 +15,6 @@
         "lib": ["es2020", "dom"],
         "skipLibCheck": true,
         "skipDefaultLibCheck": true,
-        "ignoreDeprecations": "6.0",
         "baseUrl": ".",
         "paths": {
             "@libs/constants/*": ["libs/constants/src/lib/*"],
@@ -23,7 +22,8 @@
             "@libs/middlewares/*": ["libs/middlewares/src/lib/*"],
             "@libs/utils/*": ["libs/utils/src/lib/*"],
             "@libs/types/*": ["libs/types/src/lib/*"],
-            "@libs/interceptors/*": ["libs/interceptors/src/lib/*"]
+            "@libs/interceptors/*": ["libs/interceptors/src/lib/*"],
+            "@libs/guards/*": ["libs/guards/src/lib/*"]
         }
     },
     "exclude": ["node_modules", "tmp"]
