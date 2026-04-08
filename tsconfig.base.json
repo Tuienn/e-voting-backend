@@ -23,8 +23,7 @@
             "@libs/utils/*": ["libs/utils/src/lib/*"],
             "@libs/types/*": ["libs/types/src/lib/*"],
             "@libs/interceptors/*": ["libs/interceptors/src/lib/*"]
-        },
-        "ignoreDeprecations": "6.0"
+        }
     },
     "exclude": ["node_modules", "tmp"]
 }
