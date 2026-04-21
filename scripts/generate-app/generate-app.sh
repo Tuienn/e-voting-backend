@@ -10,9 +10,10 @@ BOLD='\033[1m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-BFF_DIR="$PROJECT_ROOT/apps/bff"
+APP_TEMPLATE_DIR="$SCRIPT_DIR/template"
+ENV_TEMPLATE_FILE="$SCRIPT_DIR/configuration/env.config.ts.txt"
 LIBS_CONFIG_DIR="$PROJECT_ROOT/libs/configuration/src/lib"
 
 # ── Case conversion helpers ──────────────────────────────────────────────────
@@ -55,12 +56,17 @@ sedi() {
 
 echo -e "${CYAN}${BOLD}"
 echo "╔══════════════════════════════════════════════╗"
-echo "║   NestJS App Generator (from BFF template)  ║"
+echo "║     NestJS App Generator (from template)    ║"
 echo "╚══════════════════════════════════════════════╝"
 echo -e "${NC}"
 
-if [ ! -d "$BFF_DIR" ]; then
-    echo -e "${RED}Error: BFF template not found at apps/bff/${NC}"
+if [ ! -d "$APP_TEMPLATE_DIR" ]; then
+    echo -e "${RED}Error: app template not found at scripts/generate-app/template/${NC}"
+    exit 1
+fi
+
+if [ ! -f "$ENV_TEMPLATE_FILE" ]; then
+    echo -e "${RED}Error: env template not found at scripts/generate-app/configuration/env.config.ts.txt${NC}"
     exit 1
 fi
 
@@ -87,6 +93,29 @@ while true; do
     fi
 done
 
+# ── Prompt for transport mode ───────────────────────────────────────────────
+
+while true; do
+    echo -e "${YELLOW}Select app mode:${NC}"
+    echo "  1) TCP only"
+    echo "  2) HTTP + TCP"
+    read -rp "$(echo -e "${YELLOW}Choose [1-2] (default 2):${NC} ")" APP_MODE_CHOICE
+
+    case "$APP_MODE_CHOICE" in
+        ""|2)
+            APP_MODE="http-tcp"
+            break
+            ;;
+        1)
+            APP_MODE="tcp"
+            break
+            ;;
+        *)
+            echo -e "${RED}  Invalid choice. Please enter 1 or 2.${NC}"
+            ;;
+    esac
+done
+
 # ── Derive all case variants ─────────────────────────────────────────────────
 
 KEBAB="$APP_NAME"
@@ -100,6 +129,7 @@ echo -e "  kebab-case            →  ${GREEN}${KEBAB}${NC}              (folder
 echo -e "  PascalCase            →  ${GREEN}${PASCAL}${NC}              (class names)"
 echo -e "  SCREAMING_SNAKE_CASE  →  ${GREEN}${SCREAMING_SNAKE}${NC}              (constants)"
 echo -e "  Title Case            →  ${GREEN}${TITLE}${NC}              (Swagger docs)"
+echo -e "  App mode              →  ${GREEN}${APP_MODE}${NC}"
 echo ""
 
 # ── Pre-flight checks ────────────────────────────────────────────────────────
@@ -142,20 +172,36 @@ echo ""
 # ── Step 1: Copy app directory ───────────────────────────────────────────────
 
 echo -e "${YELLOW}[1/4]${NC} Copying app template..."
-cp -r "$BFF_DIR" "$APP_DIR"
-rm -f "$APP_DIR/.env"
+cp -r "$APP_TEMPLATE_DIR" "$APP_DIR"
+
+# Rename all *.txt template files to real file names (e.g. main.ts.txt -> main.ts)
+while IFS= read -r template_file; do
+    mv "$template_file" "${template_file%.txt}"
+done < <(find "$APP_DIR" -type f -name "*.txt")
+
+# Apply mode-specific templates
+if [ "$APP_MODE" = "tcp" ]; then
+    cp "$APP_DIR/src/only-tcp-main.ts" "$APP_DIR/src/main.ts"
+    cp "$APP_DIR/src/app/only-tcp-app.module.ts" "$APP_DIR/src/app/app.module.ts"
+else
+    cp "$APP_DIR/src/http-tcp-main.ts" "$APP_DIR/src/main.ts"
+fi
+
+# Cleanup helper template files from generated app
+rm -f "$APP_DIR/src/http-tcp-main.ts" "$APP_DIR/src/only-tcp-main.ts" "$APP_DIR/src/app/only-tcp-app.module.ts"
 
 # ── Step 2: Copy & rename env config in libs ─────────────────────────────────
 
 echo -e "${YELLOW}[2/4]${NC} Creating environment configuration..."
-cp "$LIBS_CONFIG_DIR/bff-env.config.ts" "$ENV_CONFIG"
+cp "$ENV_TEMPLATE_FILE" "$ENV_CONFIG"
 
 # ── Step 3: Replace all references ───────────────────────────────────────────
 
 echo -e "${YELLOW}[3/4]${NC} Replacing references..."
 
 # --- libs env config: class name ---
-sedi "s|BffEnvConfiguration|${PASCAL}EnvConfiguration|g" "$ENV_CONFIG"
+sedi "s|UserEnvConfiguration|${PASCAL}EnvConfiguration|g" "$ENV_CONFIG"
+sedi "s|USER_|${SCREAMING_SNAKE}_|g" "$ENV_CONFIG"
 
 # --- project.json: name, paths, build targets (all are kebab) ---
 sedi "s|bff|${KEBAB}|g" "$APP_DIR/project.json"
@@ -165,6 +211,7 @@ sedi "s|apps/bff|apps/${KEBAB}|g" "$APP_DIR/webpack.config.js"
 
 # --- .env.example: service name ---
 sedi "s|bff-service|${KEBAB}-service|g" "$APP_DIR/.env.example"
+sedi "s|bff-service|${KEBAB}-service|g" "$APP_DIR/.env"
 
 # --- src/main.ts (order: longest match first to avoid partial replacements) ---
 sedi "s|BFF_CONFIG|${SCREAMING_SNAKE}_CONFIG|g"                      "$APP_DIR/src/main.ts"
@@ -179,9 +226,6 @@ sedi "s|BFF_CONFIG|${SCREAMING_SNAKE}_CONFIG|g"                      "$APP_DIR/s
 
 # --- src/app/app.module.ts: config constant ---
 sedi "s|BFF_CONFIG|${SCREAMING_SNAKE}_CONFIG|g"                      "$APP_DIR/src/app/app.module.ts"
-
-# Create .env from .env.example for immediate use
-cp "$APP_DIR/.env.example" "$APP_DIR/.env"
 
 # ── Step 4: Reset Nx daemon to pick up the new project ──────────────────────
 
@@ -199,7 +243,7 @@ echo "╚═══════════════════════�
 echo -e "${NC}"
 echo -e "  ${BOLD}App directory${NC}    apps/${KEBAB}/"
 echo -e "  ${BOLD}Env config${NC}       libs/configuration/src/lib/${KEBAB}-env.config.ts"
-echo -e "  ${BOLD}Environment${NC}      apps/${KEBAB}/.env  ${CYAN}(copied from .env.example)${NC}"
+echo -e "  ${BOLD}Environment${NC}      apps/${KEBAB}/.env  ${CYAN}(copied from template)${NC}"
 echo ""
 echo -e "${YELLOW}${BOLD}Next steps:${NC}"
 echo -e "  1. Update port numbers in ${CYAN}apps/${KEBAB}/.env${NC} to avoid conflicts with other services"

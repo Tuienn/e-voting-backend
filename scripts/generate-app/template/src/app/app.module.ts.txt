@@ -1,0 +1,64 @@
+import { Module } from '@nestjs/common'
+import { AppController } from './app.controller'
+import { AppService } from './app.service'
+import { ConfigModule } from '@nestjs/config'
+import { CONFIGURATION, TConfiguration } from '../configuration'
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
+import { HttpLoggerInterceptor } from '@libs/interceptors/logger.interceptor'
+import { ExceptionInterceptor } from '@libs/interceptors/exception.interceptor'
+import { TimeoutInterceptor } from '@libs/interceptors/timeout.interceptor'
+import { TcpLoggerInterceptor } from '@libs/interceptors/tcp-logger.interceptor'
+import { HttpThrottlerGuard } from '@libs/guards/throttler.guard'
+import { ClientsModule, Transport } from '@nestjs/microservices'
+import { ThrottlerModule } from '@nestjs/throttler'
+
+@Module({
+    imports: [
+        ConfigModule.forRoot({ load: [() => CONFIGURATION] }),
+        //NOTE- Giới hạn số request HTTP trong khoảng thời gian THROTTLE_TTL (ms), bỏ qua TCP
+        ThrottlerModule.forRoot([
+            {
+                ttl: AppModule.CONFIGURATION.THROTTLE_TTL,
+                limit: AppModule.CONFIGURATION.THROTTLE_LIMIT
+            }
+        ]),
+        //NOTE- Tên định danh client TCP gọi và cấu hình options cho TCP service đích gọi đến
+        ClientsModule.register([
+            {
+                name: `TCP_${AppModule.CONFIGURATION.SERVICE_NAME}`,
+                transport: Transport.TCP,
+                options: {
+                    host: AppModule.CONFIGURATION.BFF_CONFIG.USER_TCP_HOST,
+                    port: AppModule.CONFIGURATION.BFF_CONFIG.USER_TCP_PORT
+                }
+            }
+        ])
+    ],
+    controllers: [AppController],
+    providers: [
+        AppService,
+        {
+            provide: APP_GUARD,
+            useClass: HttpThrottlerGuard
+        },
+        {
+            provide: APP_INTERCEPTOR,
+            useClass: HttpLoggerInterceptor
+        },
+        {
+            provide: APP_INTERCEPTOR,
+            useClass: TcpLoggerInterceptor
+        },
+        {
+            provide: APP_INTERCEPTOR,
+            useClass: ExceptionInterceptor
+        },
+        {
+            provide: APP_INTERCEPTOR,
+            useClass: TimeoutInterceptor
+        }
+    ]
+})
+export class AppModule {
+    static CONFIGURATION: TConfiguration = CONFIGURATION
+}

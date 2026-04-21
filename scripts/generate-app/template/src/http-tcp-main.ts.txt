@@ -1,4 +1,4 @@
-import { Logger, ValidationPipe } from '@nestjs/common'
+import { BadRequestException, Logger, ValidationPipe } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
 import { AppModule } from './app/app.module'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
@@ -12,28 +12,47 @@ async function bootstrap() {
         {
             transport: Transport.TCP,
             options: {
-                host: AppModule.CONFIGURATION.USER_CONFIG.TCP_HOST,
-                port: AppModule.CONFIGURATION.USER_CONFIG.TCP_PORT
+                host: AppModule.CONFIGURATION.BFF_CONFIG.TCP_HOST,
+                port: AppModule.CONFIGURATION.BFF_CONFIG.TCP_PORT
             }
         },
         { inheritAppConfig: true } //NOTE - Kế thừa cấu hình từ app server, nếu không có flag này, TcpLoggerInterceptor được đăng ký trong app.module.ts sẽ không bao giờ chạy khi nhận TCP message
     )
 
-    const globalPrefix = AppModule.CONFIGURATION.USER_CONFIG.HTTP_GLOBAL_PREFIX
+    const globalPrefix = AppModule.CONFIGURATION.BFF_CONFIG.HTTP_GLOBAL_PREFIX
     app.setGlobalPrefix(globalPrefix)
-    app.useGlobalPipes(new ValidationPipe({ transform: true }))
+    app.enableShutdownHooks() //NOTE - Kích hoạt lifecycle hook onModuleDestroy để có thể đóng kết nối TCP client khi ứng dụng tắt
+    app.useGlobalPipes(
+        new ValidationPipe({
+            transform: true,
+            whitelist: true, // tự động loại bỏ field thừa
+            forbidNonWhitelisted: true, // báo lỗi nếu client gửi field không mong muốn
+            stopAtFirstError: true, // dừng validation sau lỗi đầu tiên
+            forbidUnknownValues: true, // báo lỗi nếu giá trị undefined/null/rỗng
+            exceptionFactory: (errors) => {
+                return new BadRequestException(
+                    errors
+                        .map((e) => {
+                            const constraints = e.constraints ? Object.values(e.constraints).join(', ') : ''
+                            return `${e.property} - ${constraints}`
+                        })
+                        .join('; ')
+                )
+            }
+        })
+    )
 
     //NOTE - Khởi động microservices server để nhận TCP request.
     app.startAllMicroservices()
     Logger.log(
-        `🚀 TCP microservice is running on: ${AppModule.CONFIGURATION.USER_CONFIG.TCP_HOST}:${AppModule.CONFIGURATION.USER_CONFIG.TCP_PORT} `
+        `🚀 TCP microservice is running on: ${AppModule.CONFIGURATION.BFF_CONFIG.TCP_HOST}:${AppModule.CONFIGURATION.BFF_CONFIG.TCP_PORT} `
     )
 
     const swaggerConfig = new DocumentBuilder()
-        .setTitle('User API')
-        .setDescription('User API documentation')
+        .setTitle('BFF API')
+        .setDescription('BFF API documentation')
         .setVersion('1.0')
-        .addTag('user')
+        .addTag('bff')
         .addBearerAuth({
             type: 'http',
             in: 'header',
@@ -46,7 +65,7 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, swaggerConfig)
     SwaggerModule.setup(`${globalPrefix}/docs`, app, document)
 
-    const port = AppModule.CONFIGURATION.USER_CONFIG.HTTP_PORT
+    const port = AppModule.CONFIGURATION.BFF_CONFIG.HTTP_PORT
     await app.listen(port)
 
     Logger.log(`🚀 Application is running on: http://localhost:${port}/${globalPrefix} `)
