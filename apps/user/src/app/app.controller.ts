@@ -1,13 +1,7 @@
 import { Controller } from '@nestjs/common'
 import { AppService } from './app.service'
-import { MessagePattern } from '@nestjs/microservices'
 
-@Controller()
+@Controller('users')
 export class AppController {
     constructor(private readonly appService: AppService) {}
-
-    @MessagePattern('hello_world')
-    helloWorld() {
-        return this.appService.helloWorld()
-    }
 }

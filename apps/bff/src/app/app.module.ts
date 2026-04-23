@@ -17,8 +17,8 @@ import { ThrottlerModule } from '@nestjs/throttler'
         //NOTE- Giới hạn số request HTTP trong khoảng thời gian THROTTLE_TTL (ms), bỏ qua TCP
         ThrottlerModule.forRoot([
             {
-                ttl: AppModule.CONFIGURATION.THROTTLE_TTL,
-                limit: AppModule.CONFIGURATION.THROTTLE_LIMIT
+                ttl: AppModule.CONFIGURATION.BFF_CONFIG.THROTTLE_TTL,
+                limit: AppModule.CONFIGURATION.BFF_CONFIG.THROTTLE_LIMIT
             }
         ]),
         //NOTE- Tên định danh client TCP gọi và cấu hình options cho TCP service đích gọi đến

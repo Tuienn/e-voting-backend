@@ -3,9 +3,22 @@ import { NestFactory } from '@nestjs/core'
 import { AppModule } from './app/app.module'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { MicroserviceOptions, Transport } from '@nestjs/microservices'
+import helmet from 'helmet'
+import { getHelmetConfig } from '@libs/configuration/helmet.config'
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule)
+
+    //NOTE - Cấu hình CORS
+    app.enableCors({
+        origin: AppModule.CONFIGURATION.BFF_CONFIG.CORS_ORIGINS.split(','),
+        methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+        credentials: true, // Cho phép gửi cookies/auth headers
+        maxAge: 3600 // Cache preflight 1 giờ
+    })
+
+    app.use(helmet(getHelmetConfig(!AppModule.CONFIGURATION.IS_DEV)))
 
     //NOTE - Không sử dụng hàm NestFactory.createMicroservice vì muốn chạy cả HTTP server và TCP microservice trong cùng một ứng dụng NestJS, thay vì tách ra thành hai ứng dụng riêng biệt.
     app.connectMicroservice<MicroserviceOptions>(
@@ -21,6 +34,7 @@ async function bootstrap() {
 
     const globalPrefix = AppModule.CONFIGURATION.BFF_CONFIG.HTTP_GLOBAL_PREFIX
     app.setGlobalPrefix(globalPrefix)
+
     app.enableShutdownHooks() //NOTE - Kích hoạt lifecycle hook onModuleDestroy để có thể đóng kết nối TCP client khi ứng dụng tắt
     app.useGlobalPipes(
         new ValidationPipe({

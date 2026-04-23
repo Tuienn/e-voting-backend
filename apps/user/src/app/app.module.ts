@@ -23,8 +23,8 @@ import { KeyvCacheableMemory } from 'cacheable'
                 name: `TCP_${AppModule.CONFIGURATION.SERVICE_NAME}`,
                 transport: Transport.TCP,
                 options: {
-                    host: AppModule.CONFIGURATION.USER_CONFIG.USER_TCP_HOST,
-                    port: AppModule.CONFIGURATION.USER_CONFIG.USER_TCP_PORT
+                    host: AppModule.CONFIGURATION.USER_CONFIG.ELECTION_TCP_HOST,
+                    port: AppModule.CONFIGURATION.USER_CONFIG.ELECTION_TCP_PORT
                 }
             }
         ]),

@@ -20,8 +20,7 @@ export class SeedAdminService implements OnApplicationBootstrap {
         const existingAdmin = await this.prisma.user.findFirst({
             where: {
                 email: adminEmail,
-                role: Role.ADMIN,
-                electionId: null
+                role: Role.ADMIN
             }
         })
 
@@ -37,7 +36,7 @@ export class SeedAdminService implements OnApplicationBootstrap {
                 email: adminEmail,
                 password: hashedPassword,
                 role: Role.ADMIN,
-                electionId: null
+                name: 'Admin'
             }
         })
 
