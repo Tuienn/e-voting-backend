@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common'
-import { CreateVoterDto } from '@libs/types/user.dto'
-import { PrismaService } from '../../infrastructure/prisma.service'
+import { CreateVoterDto, GetUserByEmailDto } from '@libs/types/identity/user.dto'
+import { PrismaService } from '../../infrastructure/prisma/prisma.service'
 import { hash } from 'argon2'
 import { handlePrismaError } from '../../infrastructure/handle-prisma-error.util'
 
@@ -8,19 +8,27 @@ import { handlePrismaError } from '../../infrastructure/handle-prisma-error.util
 export class AppService {
     constructor(private prisma: PrismaService) {}
 
-    async createVoter(data: CreateVoterDto) {
-        const hashPassword = await hash(data.password)
+    async createVoter(dto: CreateVoterDto) {
+        const hashPassword = await hash(dto.password)
 
         try {
             return await this.prisma.user.create({
                 data: {
-                    email: data.email,
+                    email: dto.email,
                     password: hashPassword,
-                    name: data.name
+                    name: dto.name
                 }
             })
         } catch (e) {
             handlePrismaError(e)
         }
+    }
+
+    async getUserByEmail(dto: GetUserByEmailDto) {
+        return await this.prisma.user.findUnique({
+            where: {
+                email: dto.email
+            }
+        })
     }
 }

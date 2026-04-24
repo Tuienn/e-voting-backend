@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsNumber, IsString } from 'class-validator'
+import { IsNumber, IsString } from 'class-validator'
 
 export class IdentityEnvConfiguration {
     @IsString()
@@ -14,30 +14,38 @@ export class IdentityEnvConfiguration {
     ELECTION_TCP_PORT: number
 
     @IsString()
-    @IsNotEmpty()
     DEFAULT_ADMIN_EMAIL: string
 
     @IsString()
-    @IsNotEmpty()
     DEFAULT_ADMIN_PASSWORD: string
 
     @IsNumber()
     REDIS_CACHE_TTL: number
 
     @IsString()
-    @IsNotEmpty()
     REDIS_HOST: string
 
     @IsNumber()
     REDIS_PORT: number
 
     @IsString()
-    @IsNotEmpty()
     REDIS_PASSWORD: string
+
+    @IsString()
+    JWT_ACCESS_SECRET: string
+
+    @IsNumber()
+    JWT_ACCESS_EXPIRES_IN: number
+
+    @IsString()
+    JWT_REFRESH_SECRET: string
+
+    @IsNumber()
+    JWT_REFRESH_EXPIRES_IN: number
 
     constructor() {
         this.TCP_HOST = process.env['TCP_HOST'] || 'localhost'
-        this.TCP_PORT = Number(process.env['TCP_PORT']) || 3301
+        this.TCP_PORT = Number(process.env['TCP_PORT']) || 3302
         this.ELECTION_TCP_HOST = process.env['ELECTION_TCP_HOST'] || 'localhost'
         this.ELECTION_TCP_PORT = Number(process.env['ELECTION_TCP_PORT']) || 3303
         this.DEFAULT_ADMIN_EMAIL = process.env['DEFAULT_ADMIN_EMAIL'] || 'admin@example.com'
@@ -46,5 +54,9 @@ export class IdentityEnvConfiguration {
         this.REDIS_HOST = process.env['REDIS_HOST'] || 'localhost'
         this.REDIS_PORT = Number(process.env['REDIS_PORT']) || 6379
         this.REDIS_PASSWORD = process.env['REDIS_PASSWORD'] || 'secret'
+        this.JWT_ACCESS_SECRET = process.env['JWT_ACCESS_SECRET'] || 'default_access_secret'
+        this.JWT_ACCESS_EXPIRES_IN = Number(process.env['JWT_ACCESS_EXPIRES_IN']) || 15 * 60
+        this.JWT_REFRESH_SECRET = process.env['JWT_REFRESH_SECRET'] || 'default_refresh_secret'
+        this.JWT_REFRESH_EXPIRES_IN = Number(process.env['JWT_REFRESH_EXPIRES_IN']) || 7 * 24 * 60 * 60
     }
 }

@@ -23,7 +23,8 @@
             "@libs/utils/*": ["libs/utils/src/lib/*"],
             "@libs/types/*": ["libs/types/src/lib/*"],
             "@libs/interceptors/*": ["libs/interceptors/src/lib/*"],
-            "@libs/guards/*": ["libs/guards/src/lib/*"]
+            "@libs/guards/*": ["libs/guards/src/lib/*"],
+            "@libs/decorators/*": ["libs/decorators/src/libs/*"]
         }
     },
     "exclude": ["node_modules", "tmp"]

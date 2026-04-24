@@ -1,6 +1,6 @@
-import { CONFIGURATION } from '../configuration'
+import { CONFIGURATION } from '../../configuration'
 import { PrismaService } from './prisma.service'
-import { Role } from '../../generated/prisma/enums'
+import { Role } from '../../../generated/prisma/enums'
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common'
 import { hash } from 'argon2'
 

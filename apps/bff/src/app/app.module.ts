@@ -1,6 +1,4 @@
 import { Module } from '@nestjs/common'
-import { AppController } from './app.controller'
-import { AppService } from './app.service'
 import { ConfigModule } from '@nestjs/config'
 import { CONFIGURATION } from '../configuration'
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
@@ -8,8 +6,9 @@ import { HttpLoggerInterceptor } from '@libs/interceptors/http-logger.intercepto
 import { ExceptionInterceptor } from '@libs/interceptors/exception.interceptor'
 import { TimeoutInterceptor } from '@libs/interceptors/timeout.interceptor'
 import { HttpThrottlerGuard } from '@libs/guards/throttler.guard'
-import { ClientsModule, Transport } from '@nestjs/microservices'
 import { ThrottlerModule } from '@nestjs/throttler'
+import { IdentityModule } from './identity/app.module'
+import { TcpClientModule } from '../infrastructure/tcp-client.module'
 
 @Module({
     imports: [
@@ -22,20 +21,10 @@ import { ThrottlerModule } from '@nestjs/throttler'
             }
         ]),
         //NOTE- Tên định danh client TCP gọi và cấu hình options cho TCP service đích gọi đến
-        ClientsModule.register([
-            {
-                name: `TCP_${CONFIGURATION.SERVICE_NAME}`,
-                transport: Transport.TCP,
-                options: {
-                    host: CONFIGURATION.BFF_CONFIG.IDENTITY_TCP_HOST,
-                    port: CONFIGURATION.BFF_CONFIG.IDENTITY_TCP_PORT
-                }
-            }
-        ])
+        TcpClientModule,
+        IdentityModule
     ],
-    controllers: [AppController],
     providers: [
-        AppService,
         {
             provide: APP_GUARD,
             useClass: HttpThrottlerGuard

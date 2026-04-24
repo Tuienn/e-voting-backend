@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { APP_INTERCEPTOR } from '@nestjs/core'
 import { ExceptionInterceptor } from '@libs/interceptors/exception.interceptor'
+import { HttpToRpcExceptionInterceptor } from '@libs/interceptors/http-to-rpc-exception.interceptor'
 import { TimeoutInterceptor } from '@libs/interceptors/timeout.interceptor'
 import { TcpLoggerInterceptor } from '@libs/interceptors/tcp-logger.interceptor'
 import { CacheModule } from '@nestjs/cache-manager'
@@ -11,7 +12,7 @@ import { CONFIGURATION } from '../configuration'
 import { UserModule } from './user/app.module'
 import { AuthModule } from './auth/app.module'
 import { TcpClientModule } from '../infrastructure/tcp-client.module'
-import { PrismaModule } from '../infrastructure/prisma.module'
+import { PrismaModule } from '../infrastructure/prisma/prisma.module'
 
 @Module({
     imports: [
@@ -41,6 +42,10 @@ import { PrismaModule } from '../infrastructure/prisma.module'
         AuthModule
     ],
     providers: [
+        {
+            provide: APP_INTERCEPTOR,
+            useClass: HttpToRpcExceptionInterceptor
+        },
         {
             provide: APP_INTERCEPTOR,
             useClass: TcpLoggerInterceptor

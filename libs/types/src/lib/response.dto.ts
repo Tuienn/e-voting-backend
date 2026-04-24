@@ -1,18 +1,20 @@
 import { HTTP_MESSAGE_TITLES } from '@libs/constants/http.constant'
 import { HttpStatus } from '@nestjs/common'
-import { ApiProperty } from '@nestjs/swagger'
+import { IsNumber, IsOptional, IsString } from 'class-validator'
 
 export class ResponseDto<T> {
-    @ApiProperty({ type: 'string', example: HTTP_MESSAGE_TITLES.OK })
+    @IsOptional()
+    @IsString()
     title?: string
 
-    @ApiProperty({ type: 'string', example: 'OK' })
+    @IsOptional()
+    @IsString()
     message?: string
 
-    @ApiProperty()
+    @IsOptional()
     data?: T
 
-    @ApiProperty({ type: 'number', example: HttpStatus.OK })
+    @IsNumber()
     statusCode: number
 
     constructor(data: Partial<ResponseDto<T>>) {

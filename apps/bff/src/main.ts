@@ -68,7 +68,6 @@ async function bootstrap() {
         .setTitle('BFF API')
         .setDescription('BFF API documentation')
         .setVersion('1.0')
-        .addTag('bff')
         .addBearerAuth({
             type: 'http',
             in: 'header',

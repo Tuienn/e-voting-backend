@@ -1,10 +1,10 @@
-export const AUTH = {
+export const AUTH_TEXT = {
     INVALID_ACCESS_TOKEN: 'Invalid or expired access token',
     ACCESS_TOKEN_REQUIRED: 'Access token is required',
     INVALID_REFRESH_TOKEN: 'Invalid or expired refresh token',
     USER_NOT_FOUND: 'User not found',
     ACCOUNT_DISABLED: 'Account has been disabled',
-    INVALID_ACCOUNT: 'Invalid username or password'
+    INVALID_CREDENTIALS: 'Invalid email or password'
 }
 
 export const missingDataField = (field: string) => `${field.charAt(0).toUpperCase() + field.slice(1)} is required`
