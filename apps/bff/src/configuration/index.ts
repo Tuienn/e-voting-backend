@@ -13,5 +13,3 @@ export const CONFIGURATION = new Configuration()
 
 // Đệ quy validate BaseEnvConfiguration và BffEnvConfiguration
 CONFIGURATION.validate()
-
-export type TConfiguration = typeof CONFIGURATION

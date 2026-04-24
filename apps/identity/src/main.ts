@@ -1,14 +1,15 @@
 import { BadRequestException, Logger, ValidationPipe } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
-import { AppModule } from './app/main.module'
+import { AppModule } from './app/app.module'
 import { MicroserviceOptions, Transport } from '@nestjs/microservices'
+import { CONFIGURATION } from './configuration'
 
 async function bootstrap() {
     const app = await NestFactory.createMicroservice<MicroserviceOptions>(AppModule, {
         transport: Transport.TCP,
         options: {
-            host: AppModule.CONFIGURATION.IDENTITY_CONFIG.TCP_HOST,
-            port: AppModule.CONFIGURATION.IDENTITY_CONFIG.TCP_PORT
+            host: CONFIGURATION.IDENTITY_CONFIG.TCP_HOST,
+            port: CONFIGURATION.IDENTITY_CONFIG.TCP_PORT
         }
     })
 
@@ -36,7 +37,7 @@ async function bootstrap() {
     await app.listen()
 
     Logger.log(
-        `🚀 TCP microservice is running on: ${AppModule.CONFIGURATION.IDENTITY_CONFIG.TCP_HOST}:${AppModule.CONFIGURATION.IDENTITY_CONFIG.TCP_PORT}`,
+        `🚀 TCP microservice is running on: ${CONFIGURATION.IDENTITY_CONFIG.TCP_HOST}:${CONFIGURATION.IDENTITY_CONFIG.TCP_PORT}`,
         'Bootstrap'
     )
 }

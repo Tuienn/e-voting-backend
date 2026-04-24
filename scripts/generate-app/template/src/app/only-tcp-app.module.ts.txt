@@ -15,11 +15,11 @@ import { ClientsModule, Transport } from '@nestjs/microservices'
         //NOTE- Tên định danh client TCP gọi và cấu hình options cho TCP service đích gọi đến
         ClientsModule.register([
             {
-                name: `TCP_${AppModule.CONFIGURATION.SERVICE_NAME}`,
+                name: `TCP_${CONFIGURATION.SERVICE_NAME}`,
                 transport: Transport.TCP,
                 options: {
-                    host: AppModule.CONFIGURATION.IDENTITY_CONFIG.IDENTITY_TCP_HOST,
-                    port: AppModule.CONFIGURATION.IDENTITY_CONFIG.IDENTITY_TCP_PORT
+                    host: CONFIGURATION.BFF_CONFIG.IDENTITY_TCP_HOST,
+                    port: CONFIGURATION.BFF_CONFIG.IDENTITY_TCP_PORT
                 }
             }
         ])
@@ -41,6 +41,4 @@ import { ClientsModule, Transport } from '@nestjs/microservices'
         }
     ]
 })
-export class AppModule {
-    static CONFIGURATION: TConfiguration = CONFIGURATION
-}
+export class AppModule {}

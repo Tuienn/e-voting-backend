@@ -14,5 +14,3 @@ export const CONFIGURATION = new Configuration()
 
 // Đệ quy validate BaseEnvConfiguration và IdentityEnvConfiguration
 CONFIGURATION.validate()
-
-export type TConfiguration = typeof CONFIGURATION

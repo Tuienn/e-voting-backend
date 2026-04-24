@@ -11,7 +11,10 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
             await this.$runCommandRaw({ ping: 1 }) // Kiểm tra kết nối MongoDB
             this.logger.log('🚀 Connected to database')
         } catch (error) {
-            this.logger.error('❌ Failed to connect', error)
+            const message = error instanceof Error ? error.message : JSON.stringify(error)
+            const stack = error instanceof Error ? error.stack : undefined
+
+            this.logger.error(`❌ Failed to connect: ${message}`, stack)
             throw error // NestJS dừng app
         }
     }

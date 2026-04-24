@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common'
 import { AppController } from './app.controller'
 import { AppService } from './app.service'
 import { ConfigModule } from '@nestjs/config'
-import { CONFIGURATION, TConfiguration } from '../configuration'
+import { CONFIGURATION } from '../configuration'
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
 import { HttpLoggerInterceptor } from '@libs/interceptors/http-logger.interceptor'
 import { ExceptionInterceptor } from '@libs/interceptors/exception.interceptor'
@@ -17,18 +17,18 @@ import { ThrottlerModule } from '@nestjs/throttler'
         //NOTE- Giới hạn số request HTTP trong khoảng thời gian THROTTLE_TTL (ms), bỏ qua TCP
         ThrottlerModule.forRoot([
             {
-                ttl: AppModule.CONFIGURATION.BFF_CONFIG.THROTTLE_TTL,
-                limit: AppModule.CONFIGURATION.BFF_CONFIG.THROTTLE_LIMIT
+                ttl: CONFIGURATION.BFF_CONFIG.THROTTLE_TTL,
+                limit: CONFIGURATION.BFF_CONFIG.THROTTLE_LIMIT
             }
         ]),
         //NOTE- Tên định danh client TCP gọi và cấu hình options cho TCP service đích gọi đến
         ClientsModule.register([
             {
-                name: `TCP_${AppModule.CONFIGURATION.SERVICE_NAME}`,
+                name: `TCP_${CONFIGURATION.SERVICE_NAME}`,
                 transport: Transport.TCP,
                 options: {
-                    host: AppModule.CONFIGURATION.BFF_CONFIG.IDENTITY_TCP_HOST,
-                    port: AppModule.CONFIGURATION.BFF_CONFIG.IDENTITY_TCP_PORT
+                    host: CONFIGURATION.BFF_CONFIG.IDENTITY_TCP_HOST,
+                    port: CONFIGURATION.BFF_CONFIG.IDENTITY_TCP_PORT
                 }
             }
         ])
@@ -54,6 +54,4 @@ import { ThrottlerModule } from '@nestjs/throttler'
         }
     ]
 })
-export class AppModule {
-    static CONFIGURATION: TConfiguration = CONFIGURATION
-}
+export class AppModule {}

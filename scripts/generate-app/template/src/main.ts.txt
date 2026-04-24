@@ -5,13 +5,14 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { MicroserviceOptions, Transport } from '@nestjs/microservices'
 import helmet from 'helmet'
 import { getHelmetConfig } from '@libs/configuration/helmet.config'
+import { CONFIGURATION } from './configuration'
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule)
 
     //NOTE - Cấu hình CORS
     app.enableCors({
-        origin: AppModule.CONFIGURATION.BFF_CONFIG.CORS_ORIGINS.split(','),
+        origin: CONFIGURATION.BFF_CONFIG.CORS_ORIGINS.split(','),
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
         credentials: true, // Cho phép gửi cookies/auth headers
@@ -25,14 +26,14 @@ async function bootstrap() {
         {
             transport: Transport.TCP,
             options: {
-                host: AppModule.CONFIGURATION.BFF_CONFIG.TCP_HOST,
-                port: AppModule.CONFIGURATION.BFF_CONFIG.TCP_PORT
+                host: CONFIGURATION.BFF_CONFIG.TCP_HOST,
+                port: CONFIGURATION.BFF_CONFIG.TCP_PORT
             }
         },
         { inheritAppConfig: true } //NOTE - Kế thừa cấu hình từ app server, nếu không có flag này, TcpLoggerInterceptor được đăng ký trong app.module.ts sẽ không bao giờ chạy khi nhận TCP message
     )
 
-    const globalPrefix = AppModule.CONFIGURATION.BFF_CONFIG.HTTP_GLOBAL_PREFIX
+    const globalPrefix = CONFIGURATION.BFF_CONFIG.HTTP_GLOBAL_PREFIX
     app.setGlobalPrefix(globalPrefix)
 
     app.enableShutdownHooks() //NOTE - Kích hoạt lifecycle hook onModuleDestroy để có thể đóng kết nối TCP client khi ứng dụng tắt
@@ -59,7 +60,7 @@ async function bootstrap() {
     //NOTE - Khởi động microservices server để nhận TCP request.
     app.startAllMicroservices()
     Logger.log(
-        `🚀 TCP microservice is running on: ${AppModule.CONFIGURATION.BFF_CONFIG.TCP_HOST}:${AppModule.CONFIGURATION.BFF_CONFIG.TCP_PORT}`,
+        `🚀 TCP microservice is running on: ${CONFIGURATION.BFF_CONFIG.TCP_HOST}:${CONFIGURATION.BFF_CONFIG.TCP_PORT}`,
         'Bootstrap'
     )
 
@@ -80,7 +81,7 @@ async function bootstrap() {
     const document = SwaggerModule.createDocument(app, swaggerConfig)
     SwaggerModule.setup(`${globalPrefix}/docs`, app, document)
 
-    const port = AppModule.CONFIGURATION.BFF_CONFIG.HTTP_PORT
+    const port = CONFIGURATION.BFF_CONFIG.HTTP_PORT
     await app.listen(port)
 
     Logger.log(`🚀 Application is running on: http://localhost:${port}/${globalPrefix}`, 'Bootstrap')

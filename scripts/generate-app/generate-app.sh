@@ -200,8 +200,8 @@ cp "$ENV_TEMPLATE_FILE" "$ENV_CONFIG"
 echo -e "${YELLOW}[3/4]${NC} Replacing references..."
 
 # --- libs env config: class name ---
-sedi "s|IdentityEnvConfiguration|${PASCAL}EnvConfiguration|g" "$ENV_CONFIG"
-sedi "s|USER_|${SCREAMING_SNAKE}_|g" "$ENV_CONFIG"
+sedi "s|BffEnvConfiguration|${PASCAL}EnvConfiguration|g" "$ENV_CONFIG"
+sedi "s|BFF_|${SCREAMING_SNAKE}_|g" "$ENV_CONFIG"
 
 # --- project.json: name, paths, build targets (all are kebab) ---
 sedi "s|bff|${KEBAB}|g" "$APP_DIR/project.json"
@@ -210,6 +210,7 @@ sedi "s|bff|${KEBAB}|g" "$APP_DIR/project.json"
 sedi "s|apps/bff|apps/${KEBAB}|g" "$APP_DIR/webpack.config.js"
 
 # --- .env.example: service name ---
+cp "$APP_DIR/.env.example" "$APP_DIR/.env"
 sedi "s|bff-service|${KEBAB}-service|g" "$APP_DIR/.env.example"
 sedi "s|bff-service|${KEBAB}-service|g" "$APP_DIR/.env"
 
@@ -226,6 +227,17 @@ sedi "s|BFF_CONFIG|${SCREAMING_SNAKE}_CONFIG|g"                      "$APP_DIR/s
 
 # --- src/app/app.module.ts: config constant ---
 sedi "s|BFF_CONFIG|${SCREAMING_SNAKE}_CONFIG|g"                      "$APP_DIR/src/app/app.module.ts"
+
+# --- fallback pass: keep every generated file aligned with the app name ---
+while IFS= read -r -d '' generated_file; do
+    sedi "s|BFF_CONFIG|${SCREAMING_SNAKE}_CONFIG|g"                  "$generated_file"
+    sedi "s|BffEnvConfiguration|${PASCAL}EnvConfiguration|g"         "$generated_file"
+    sedi "s|bff-env.config|${KEBAB}-env.config|g"                   "$generated_file"
+    sedi "s|bff-service|${KEBAB}-service|g"                         "$generated_file"
+    sedi "s|'BFF API documentation'|'${TITLE} API documentation'|g"  "$generated_file"
+    sedi "s|'BFF API'|'${TITLE} API'|g"                              "$generated_file"
+    sedi "s|addTag('bff')|addTag('${KEBAB}')|g"                      "$generated_file"
+done < <(find "$APP_DIR" -type f \( -name "*.ts" -o -name "*.js" -o -name ".env" -o -name ".env.example" -o -name "project.json" -o -name "webpack.config.js" \) -print0)
 
 # ── Step 4: Reset Nx daemon to pick up the new project ──────────────────────
 

@@ -1,8 +1,8 @@
 import { Inject, Injectable } from '@nestjs/common'
 import { ClientProxy } from '@nestjs/microservices'
-import { UserModule } from './app.module'
+import { CONFIGURATION } from '../../configuration'
 
 @Injectable()
 export class AppService {
-    constructor(@Inject(`TCP_${UserModule.CONFIGURATION.SERVICE_NAME}`) private readonly userClient: ClientProxy) {}
+    constructor(@Inject(`TCP_${CONFIGURATION.SERVICE_NAME}`) private readonly userClient: ClientProxy) {}
 }
