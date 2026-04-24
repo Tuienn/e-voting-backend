@@ -1,19 +1,20 @@
 import { TcpCacheInterceptor } from '@libs/interceptors/tcp-cache.interceptor'
 import { Module } from '@nestjs/common'
-import { AppController } from './app.controller'
-import { AppService } from './app.service'
 import { ConfigModule, ConfigService } from '@nestjs/config'
-import { CONFIGURATION, TConfiguration } from '../configuration'
 import { APP_INTERCEPTOR } from '@nestjs/core'
 import { ExceptionInterceptor } from '@libs/interceptors/exception.interceptor'
 import { TimeoutInterceptor } from '@libs/interceptors/timeout.interceptor'
 import { TcpLoggerInterceptor } from '@libs/interceptors/tcp-logger.interceptor'
 import { ClientsModule, Transport } from '@nestjs/microservices'
-import { PrismaService } from '../prisma/prisma.service'
-import { SeedAdminService } from '../seed/seed-admin.service'
 import { CacheModule } from '@nestjs/cache-manager'
 import KeyvRedis, { Keyv } from '@keyv/redis'
 import { KeyvCacheableMemory } from 'cacheable'
+import { CONFIGURATION, TConfiguration } from '../configuration'
+import { PrismaService } from '../prisma/prisma.service'
+import { SeedAdminService } from '../seed/seed-admin.service'
+import { UserModule } from './user/app.module'
+import { AuthModule } from './auth/app.module'
+
 @Module({
     imports: [
         ConfigModule.forRoot({ load: [() => CONFIGURATION] }),
@@ -23,8 +24,8 @@ import { KeyvCacheableMemory } from 'cacheable'
                 name: `TCP_${AppModule.CONFIGURATION.SERVICE_NAME}`,
                 transport: Transport.TCP,
                 options: {
-                    host: AppModule.CONFIGURATION.USER_CONFIG.ELECTION_TCP_HOST,
-                    port: AppModule.CONFIGURATION.USER_CONFIG.ELECTION_TCP_PORT
+                    host: AppModule.CONFIGURATION.IDENTITY_CONFIG.ELECTION_TCP_HOST,
+                    port: AppModule.CONFIGURATION.IDENTITY_CONFIG.ELECTION_TCP_PORT
                 }
             }
         ]),
@@ -33,24 +34,24 @@ import { KeyvCacheableMemory } from 'cacheable'
             import: [ConfigModule],
             inject: [ConfigService],
             useFactory: () => ({
-                ttl: AppModule.CONFIGURATION.USER_CONFIG.REDIS_CACHE_TTL,
+                ttl: AppModule.CONFIGURATION.IDENTITY_CONFIG.REDIS_CACHE_TTL,
                 stores: [
                     new Keyv({
                         store: new KeyvCacheableMemory({
-                            ttl: AppModule.CONFIGURATION.USER_CONFIG.REDIS_CACHE_TTL,
+                            ttl: AppModule.CONFIGURATION.IDENTITY_CONFIG.REDIS_CACHE_TTL,
                             lruSize: 5000
                         })
                     }),
                     new KeyvRedis(
-                        `redis://:${AppModule.CONFIGURATION.USER_CONFIG.REDIS_PASSWORD}@${AppModule.CONFIGURATION.USER_CONFIG.REDIS_HOST}:${AppModule.CONFIGURATION.USER_CONFIG.REDIS_PORT}`
+                        `redis://:${AppModule.CONFIGURATION.IDENTITY_CONFIG.REDIS_PASSWORD}@${AppModule.CONFIGURATION.IDENTITY_CONFIG.REDIS_HOST}:${AppModule.CONFIGURATION.IDENTITY_CONFIG.REDIS_PORT}`
                     )
                 ]
             })
-        })
+        }),
+        UserModule,
+        AuthModule
     ],
-    controllers: [AppController],
     providers: [
-        AppService,
         {
             provide: APP_INTERCEPTOR,
             useClass: TcpLoggerInterceptor

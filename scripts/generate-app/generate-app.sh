@@ -200,7 +200,7 @@ cp "$ENV_TEMPLATE_FILE" "$ENV_CONFIG"
 echo -e "${YELLOW}[3/4]${NC} Replacing references..."
 
 # --- libs env config: class name ---
-sedi "s|UserEnvConfiguration|${PASCAL}EnvConfiguration|g" "$ENV_CONFIG"
+sedi "s|IdentityEnvConfiguration|${PASCAL}EnvConfiguration|g" "$ENV_CONFIG"
 sedi "s|USER_|${SCREAMING_SNAKE}_|g" "$ENV_CONFIG"
 
 # --- project.json: name, paths, build targets (all are kebab) ---

@@ -18,8 +18,8 @@ import { ClientsModule, Transport } from '@nestjs/microservices'
                 name: `TCP_${AppModule.CONFIGURATION.SERVICE_NAME}`,
                 transport: Transport.TCP,
                 options: {
-                    host: AppModule.CONFIGURATION.USER_CONFIG.USER_TCP_HOST,
-                    port: AppModule.CONFIGURATION.USER_CONFIG.USER_TCP_PORT
+                    host: AppModule.CONFIGURATION.IDENTITY_CONFIG.IDENTITY_TCP_HOST,
+                    port: AppModule.CONFIGURATION.IDENTITY_CONFIG.IDENTITY_TCP_PORT
                 }
             }
         ])

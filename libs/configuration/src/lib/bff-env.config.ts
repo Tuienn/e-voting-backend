@@ -15,10 +15,10 @@ export class BffEnvConfiguration {
     TCP_PORT: number
 
     @IsString()
-    USER_TCP_HOST: string
+    IDENTITY_TCP_HOST: string
 
     @IsNumber()
-    USER_TCP_PORT: number
+    IDENTITY_TCP_PORT: number
 
     @IsString()
     CORS_ORIGINS: string
@@ -45,8 +45,8 @@ export class BffEnvConfiguration {
         this.HTTP_GLOBAL_PREFIX = process.env['HTTP_GLOBAL_PREFIX'] || 'api/v1'
         this.TCP_HOST = process.env['TCP_HOST'] || 'localhost'
         this.TCP_PORT = Number(process.env['TCP_PORT']) || 3001
-        this.USER_TCP_HOST = process.env['USER_TCP_HOST'] || 'localhost'
-        this.USER_TCP_PORT = Number(process.env['USER_TCP_PORT']) || 3302
+        this.IDENTITY_TCP_HOST = process.env['IDENTITY_TCP_HOST'] || 'localhost'
+        this.IDENTITY_TCP_PORT = Number(process.env['IDENTITY_TCP_PORT']) || 3302
         this.CORS_ORIGINS = process.env['CORS_ORIGINS'] || 'http://localhost:5173,http://localhost:3000'
         this.THROTTLE_TTL = Number(process.env['THROTTLE_TTL']) || 60000
         this.THROTTLE_LIMIT = Number(process.env['THROTTLE_LIMIT']) || 100

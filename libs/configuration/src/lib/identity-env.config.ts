@@ -1,6 +1,6 @@
 import { IsNotEmpty, IsNumber, IsString } from 'class-validator'
 
-export class UserEnvConfiguration {
+export class IdentityEnvConfiguration {
     @IsString()
     TCP_HOST: string
 

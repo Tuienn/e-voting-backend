@@ -14,8 +14,8 @@ export class SeedAdminService implements OnApplicationBootstrap {
     }
 
     private async seedAdminDefault() {
-        const adminEmail = CONFIGURATION.USER_CONFIG.DEFAULT_ADMIN_EMAIL
-        const adminPassword = CONFIGURATION.USER_CONFIG.DEFAULT_ADMIN_PASSWORD
+        const adminEmail = CONFIGURATION.IDENTITY_CONFIG.DEFAULT_ADMIN_EMAIL
+        const adminPassword = CONFIGURATION.IDENTITY_CONFIG.DEFAULT_ADMIN_PASSWORD
 
         const existingAdmin = await this.prisma.user.findFirst({
             where: {

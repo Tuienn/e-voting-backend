@@ -1,7 +1,7 @@
 {
-    "name": "user",
+    "name": "identity",
     "$schema": "../../node_modules/nx/schemas/project-schema.json",
-    "sourceRoot": "apps/user/src",
+    "sourceRoot": "apps/identity/src",
     "projectType": "application",
     "tags": [],
     "targets": {
@@ -10,7 +10,7 @@
             "options": {
                 "command": "webpack-cli build",
                 "args": ["--node-env=production"],
-                "cwd": "apps/user"
+                "cwd": "apps/identity"
             },
             "configurations": {
                 "development": {
@@ -22,7 +22,10 @@
             "dependsOn": ["build"],
             "cache": true,
             "executor": "@nx/js:prune-lockfile",
-            "outputs": ["{workspaceRoot}/dist/apps/user/package.json", "{workspaceRoot}/dist/apps/user/pnpm-lock.yaml"],
+            "outputs": [
+                "{workspaceRoot}/dist/apps/identity/package.json",
+                "{workspaceRoot}/dist/apps/identity/pnpm-lock.yaml"
+            ],
             "options": {
                 "buildTarget": "build"
             }
@@ -30,7 +33,7 @@
         "copy-workspace-modules": {
             "dependsOn": ["build"],
             "cache": true,
-            "outputs": ["{workspaceRoot}/dist/apps/user/workspace_modules"],
+            "outputs": ["{workspaceRoot}/dist/apps/identity/workspace_modules"],
             "executor": "@nx/js:copy-workspace-modules",
             "options": {
                 "buildTarget": "build"
@@ -46,16 +49,16 @@
             "defaultConfiguration": "development",
             "dependsOn": ["build"],
             "options": {
-                "buildTarget": "user:build",
+                "buildTarget": "identity:build",
                 "runBuildTargetDependencies": false,
-                "runtimeArgs": ["--env-file=apps/user/.env"]
+                "runtimeArgs": ["--env-file=apps/identity/.env"]
             },
             "configurations": {
                 "development": {
-                    "buildTarget": "user:build:development"
+                    "buildTarget": "identity:build:development"
                 },
                 "production": {
-                    "buildTarget": "user:build:production"
+                    "buildTarget": "identity:build:production"
                 }
             }
         },

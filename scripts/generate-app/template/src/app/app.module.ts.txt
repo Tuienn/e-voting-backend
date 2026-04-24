@@ -28,8 +28,8 @@ import { ThrottlerModule } from '@nestjs/throttler'
                 name: `TCP_${AppModule.CONFIGURATION.SERVICE_NAME}`,
                 transport: Transport.TCP,
                 options: {
-                    host: AppModule.CONFIGURATION.BFF_CONFIG.USER_TCP_HOST,
-                    port: AppModule.CONFIGURATION.BFF_CONFIG.USER_TCP_PORT
+                    host: AppModule.CONFIGURATION.BFF_CONFIG.IDENTITY_TCP_HOST,
+                    port: AppModule.CONFIGURATION.BFF_CONFIG.IDENTITY_TCP_PORT
                 }
             }
         ])
