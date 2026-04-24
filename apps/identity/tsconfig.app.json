@@ -9,6 +9,6 @@
         "target": "es2021",
         "moduleResolution": "node"
     },
-    "include": ["src/**/*.ts"],
+    "include": ["src/**/*.ts", "../../libs/types/src/lib/user.dto.ts"],
     "exclude": ["jest.config.ts", "jest.config.cts", "src/**/*.spec.ts", "src/**/*.test.ts"]
 }

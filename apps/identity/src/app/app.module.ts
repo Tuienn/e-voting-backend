@@ -1,4 +1,3 @@
-import { TcpCacheInterceptor } from '@libs/interceptors/tcp-cache.interceptor'
 import { Module } from '@nestjs/common'
 import { ConfigModule, ConfigService } from '@nestjs/config'
 import { APP_INTERCEPTOR } from '@nestjs/core'
@@ -12,8 +11,7 @@ import { CONFIGURATION } from '../configuration'
 import { UserModule } from './user/app.module'
 import { AuthModule } from './auth/app.module'
 import { TcpClientModule } from '../infrastructure/tcp-client.module'
-import { PrismaService } from '../infrastructure/prisma.service'
-import { SeedAdminService } from '../infrastructure/seed-admin.service'
+import { PrismaModule } from '../infrastructure/prisma.module'
 
 @Module({
     imports: [
@@ -38,6 +36,7 @@ import { SeedAdminService } from '../infrastructure/seed-admin.service'
                 ]
             })
         }),
+        PrismaModule,
         UserModule,
         AuthModule
     ],
@@ -53,12 +52,6 @@ import { SeedAdminService } from '../infrastructure/seed-admin.service'
         {
             provide: APP_INTERCEPTOR,
             useClass: TimeoutInterceptor
-        },
-        PrismaService,
-        SeedAdminService,
-        {
-            provide: APP_INTERCEPTOR,
-            useClass: TcpCacheInterceptor
         }
     ]
 })
