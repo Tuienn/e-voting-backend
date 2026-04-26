@@ -24,7 +24,8 @@
             "@libs/types/*": ["libs/types/src/lib/*"],
             "@libs/interceptors/*": ["libs/interceptors/src/lib/*"],
             "@libs/guards/*": ["libs/guards/src/lib/*"],
-            "@libs/decorators/*": ["libs/decorators/src/libs/*"]
+            "@libs/decorators/*": ["libs/decorators/src/lib/*"],
+            "@libs/modules/*": ["libs/modules/src/lib/*"]
         }
     },
     "exclude": ["node_modules", "tmp"]

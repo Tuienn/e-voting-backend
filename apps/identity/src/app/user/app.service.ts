@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import { CreateVoterDto, GetUserByEmailDto } from '@libs/types/identity/user.dto'
+import { handlePrismaError } from '@libs/utils/handle-prisma-error.util'
 import { PrismaService } from '../../infrastructure/prisma/prisma.service'
 import { hash } from 'argon2'
-import { handlePrismaError } from '../../infrastructure/handle-prisma-error.util'
 
 @Injectable()
 export class AppService {

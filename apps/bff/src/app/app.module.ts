@@ -8,7 +8,7 @@ import { TimeoutInterceptor } from '@libs/interceptors/timeout.interceptor'
 import { HttpThrottlerGuard } from '@libs/guards/throttler.guard'
 import { ThrottlerModule } from '@nestjs/throttler'
 import { IdentityModule } from './identity/app.module'
-import { TcpClientModule } from '../infrastructure/tcp-client.module'
+import { TcpClientModule } from '@libs/modules/tcp-client.module'
 
 @Module({
     imports: [
@@ -21,7 +21,13 @@ import { TcpClientModule } from '../infrastructure/tcp-client.module'
             }
         ]),
         //NOTE- Tên định danh client TCP gọi và cấu hình options cho TCP service đích gọi đến
-        TcpClientModule,
+        TcpClientModule.register([
+            {
+                serviceName: CONFIGURATION.SERVICE_NAME,
+                host: CONFIGURATION.BFF_CONFIG.IDENTITY_TCP_HOST,
+                port: CONFIGURATION.BFF_CONFIG.IDENTITY_TCP_PORT
+            }
+        ]),
         IdentityModule
     ],
     providers: [
