@@ -14,7 +14,6 @@ export class AppService {
 
     //SECTION - Identity - User
     async createVoter(dto: CreateVoterDto) {
-        console.log('🚀 ~ AppService ~ createVoter ~ dto:', dto)
         try {
             return await lastValueFrom(this.userClient.send(IDENTITY_MESSAGE_PATTERNS.CREATE_VOTER, dto))
         } catch (err) {

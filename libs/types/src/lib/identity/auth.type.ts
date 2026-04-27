@@ -8,7 +8,7 @@ export type JwtPayload = {
 
 export type UserPayload = {
     userId: number
-    username: string
+    email: string
     role: Role
 }
 

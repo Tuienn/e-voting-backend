@@ -7,7 +7,7 @@ import { CONFIGURATION } from '../../configuration'
 import { AppService as IdentityService } from '../../app/identity/app.service'
 
 @Injectable()
-export class AuthGuard implements CanActivate {
+export class AuthenticatorGuard implements CanActivate {
     constructor(
         private readonly jwtService: JwtService,
         private readonly reflector: Reflector, //NOTE - Sử dụng Reflector để đọc metadata từ decorator @Public() được gắn trên controller/route handler
@@ -38,7 +38,6 @@ export class AuthGuard implements CanActivate {
             payload = this.jwtService.verify(token, {
                 secret: CONFIGURATION.BFF_CONFIG.JWT_ACCESS_SECRET
             })
-            console.log('🚀 ~ AuthGuard ~ canActivate ~ payload:', payload)
         } catch {
             throw new UnauthorizedException(AUTH_TEXT.INVALID_ACCESS_TOKEN)
         }
@@ -50,7 +49,6 @@ export class AuthGuard implements CanActivate {
 
         //SECTION - Kiểm tra user có tồn tại không
         const userExists = await this.identityService.getUserById({ id: payload.sub })
-        console.log('🚀 ~ AuthGuard ~ canActivate ~ userExists:', userExists)
 
         if (!userExists || !userExists?.id) {
             throw new UnauthorizedException(AUTH_TEXT.USER_NOT_FOUND)

@@ -1,3 +1,4 @@
+import { AuthorizationGuard } from '../infrastructure/auth/authorization.guard'
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import { CONFIGURATION } from '../configuration'
@@ -9,7 +10,7 @@ import { HttpThrottlerGuard } from '@libs/guards/throttler.guard'
 import { ThrottlerModule } from '@nestjs/throttler'
 import { IdentityModule } from './identity/app.module'
 import { TcpClientModule } from '@libs/modules/tcp-client.module'
-import { AuthGuard } from '../infrastructure/auth/auth.guard'
+import { AuthenticatorGuard } from '../infrastructure/auth/authenticator.guard'
 import { JwtModule } from '@nestjs/jwt'
 
 @Module({
@@ -36,10 +37,6 @@ import { JwtModule } from '@nestjs/jwt'
     providers: [
         {
             provide: APP_GUARD,
-            useClass: AuthGuard
-        },
-        {
-            provide: APP_GUARD,
             useClass: HttpThrottlerGuard
         },
         {
@@ -53,6 +50,14 @@ import { JwtModule } from '@nestjs/jwt'
         {
             provide: APP_INTERCEPTOR,
             useClass: ExceptionInterceptor
+        },
+        {
+            provide: APP_GUARD,
+            useClass: AuthenticatorGuard
+        },
+        {
+            provide: APP_GUARD,
+            useClass: AuthorizationGuard
         }
     ]
 })

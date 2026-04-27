@@ -10,7 +10,6 @@ export class HttpCacheInterceptor extends CacheInterceptor {
     // Override intercept để log cả HIT và MISS chính xác
     override async intercept(context: ExecutionContext, next: CallHandler): Promise<Observable<any>> {
         const key = this.trackBy(context)
-        console.log('🚀 ~ HttpCacheInterceptor ~ intercept ~ key:', key)
 
         if (key) {
             const cached = await this.cacheManager.get(key)

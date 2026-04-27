@@ -6,6 +6,7 @@ import { ResponseDto } from '@libs/types/response.dto'
 import { RefreshTokenDto, SignInDto } from '@libs/types/identity/auth.dto'
 import { MongoIdDto } from '@libs/types/common.dto'
 import { Public } from '@libs/decorators/public.decorator'
+import { Roles } from '@libs/decorators/roles.decorator'
 
 @ApiTags('Identity')
 @Controller('identity')
@@ -13,6 +14,7 @@ export class AppController {
     constructor(private readonly appService: AppService) {}
 
     //SECTION - Identity - User
+    @Roles('ADMIN')
     @Post('user/create-voter')
     @ApiBody({
         type: CreateVoterDto,
@@ -32,6 +34,7 @@ export class AppController {
         })
     }
 
+    @Roles('ADMIN')
     @Get('user/:id')
     @ApiParam({ name: 'id', type: String, description: 'User ID' })
     async getUserById(@Param() dto: MongoIdDto) {
