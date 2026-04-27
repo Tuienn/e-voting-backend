@@ -49,17 +49,26 @@ async function bootstrap() {
         .setTitle('BFF API')
         .setDescription('BFF API documentation')
         .setVersion('1.0')
-        .addBearerAuth({
-            type: 'http',
-            in: 'header',
-            name: 'Authorization',
-            scheme: 'bearer',
-            bearerFormat: 'JWT'
-        })
+        .addBearerAuth(
+            {
+                type: 'http',
+                scheme: 'bearer',
+                bearerFormat: 'JWT',
+                name: 'Authorization',
+                description: 'Paste access token only. Swagger will add the Bearer prefix automatically.',
+                in: 'header'
+            },
+            'access-token' // Tên scheme, dùng lại trong decorator
+        )
+        .addSecurityRequirements('access-token')
         .build()
 
     const document = SwaggerModule.createDocument(app, swaggerConfig)
-    SwaggerModule.setup(`${globalPrefix}/docs`, app, document)
+    SwaggerModule.setup(`${globalPrefix}/docs`, app, document, {
+        swaggerOptions: {
+            persistAuthorization: true
+        }
+    })
 
     const port = CONFIGURATION.BFF_CONFIG.HTTP_PORT
     await app.listen(port)

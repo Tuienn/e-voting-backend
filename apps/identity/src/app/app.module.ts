@@ -1,8 +1,8 @@
+import { ExceptionFilterHandler } from '@libs/filters/exception.filter'
 import { CustomValidationPipe } from '@libs/pipes/custom-validation.pipe'
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
-import { APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core'
-import { ExceptionInterceptor } from '@libs/interceptors/exception.interceptor'
+import { APP_FILTER, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core'
 import { HttpToRpcExceptionInterceptor } from '@libs/interceptors/http-to-rpc-exception.interceptor'
 import { TimeoutInterceptor } from '@libs/interceptors/timeout.interceptor'
 import { TcpLoggerInterceptor } from '@libs/interceptors/tcp-logger.interceptor'
@@ -43,8 +43,8 @@ import { PrismaModule } from '../infrastructure/prisma/prisma.module'
             useClass: TcpLoggerInterceptor
         },
         {
-            provide: APP_INTERCEPTOR,
-            useClass: ExceptionInterceptor
+            provide: APP_FILTER,
+            useClass: ExceptionFilterHandler
         },
         {
             provide: APP_INTERCEPTOR,

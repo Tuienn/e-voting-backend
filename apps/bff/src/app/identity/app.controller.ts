@@ -1,7 +1,7 @@
-import { Body, Controller, Get, HttpStatus, Param, Post } from '@nestjs/common'
+import { Body, Controller, Delete, Get, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common'
 import { AppService } from './app.service'
-import { CreateVoterDto } from '@libs/types/identity/user.dto'
-import { ApiBody, ApiParam, ApiTags } from '@nestjs/swagger'
+import { CreateVoterDto, FilterUsersDto, UpdateUserByIdDto } from '@libs/types/identity/user.dto'
+import { ApiBody, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger'
 import { ResponseDto } from '@libs/types/response.dto'
 import { RefreshTokenDto, SignInDto } from '@libs/types/identity/auth.dto'
 import { MongoIdDto } from '@libs/types/common.dto'
@@ -35,6 +35,47 @@ export class AppController {
     }
 
     @Roles('ADMIN')
+    @Patch('user/:id/disable')
+    @ApiParam({ name: 'id', type: String, description: 'User ID' })
+    async disableUserById(@Param() dto: MongoIdDto) {
+        await this.appService.disableUserById(dto)
+
+        return new ResponseDto({
+            message: 'User disabled successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Roles('ADMIN')
+    @Patch('user/:id/enable')
+    @ApiParam({ name: 'id', type: String, description: 'User ID' })
+    async enableUserById(@Param() dto: MongoIdDto) {
+        await this.appService.enableUserById(dto)
+
+        return new ResponseDto({
+            message: 'User enabled successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Roles('ADMIN')
+    @Get('user/filter')
+    @ApiQuery({ name: 'email', required: false, type: String })
+    @ApiQuery({ name: 'name', required: false, type: String })
+    @ApiQuery({ name: 'isActive', required: false, type: Boolean })
+    @ApiQuery({ name: 'page', required: false, type: Number })
+    @ApiQuery({ name: 'pageSize', required: false, type: Number })
+    async filterUsers(@Query() dto: FilterUsersDto) {
+        const result = await this.appService.filterUsers(dto)
+
+        return new ResponseDto({
+            data: result,
+            message: 'Users retrieved successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Roles('ADMIN')
     @Get('user/:id')
     @ApiParam({ name: 'id', type: String, description: 'User ID' })
     async getUserById(@Param() dto: MongoIdDto) {
@@ -43,6 +84,39 @@ export class AppController {
         return new ResponseDto({
             data: result,
             message: 'User retrieved successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Roles('ADMIN')
+    @Patch('user/:id')
+    @ApiParam({ name: 'id', type: String, description: 'User ID' })
+    @ApiBody({
+        type: UpdateUserByIdDto,
+        examples: {
+            example1: {
+                value: { email: 'john.doe@example.com', name: 'John Doe' }
+            }
+        }
+    })
+    async updateUserById(@Param() dto: MongoIdDto, @Body() data: UpdateUserByIdDto) {
+        const result = await this.appService.updateUserById({ ...dto, ...data })
+
+        return new ResponseDto({
+            data: result,
+            message: 'User updated successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Roles('ADMIN')
+    @Delete('user/:id')
+    @ApiParam({ name: 'id', type: String, description: 'User ID' })
+    async deleteUserById(@Param() dto: MongoIdDto) {
+        await this.appService.deleteUserById(dto)
+
+        return new ResponseDto({
+            message: 'User deleted successfully',
             statusCode: HttpStatus.OK
         })
     }

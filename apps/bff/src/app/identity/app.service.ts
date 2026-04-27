@@ -5,7 +5,7 @@ import { ClientProxy } from '@nestjs/microservices'
 import { lastValueFrom } from 'rxjs'
 import { CONFIGURATION } from '../../configuration'
 import { IDENTITY_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
-import { CreateVoterDto } from '@libs/types/identity/user.dto'
+import { CreateVoterDto, FilterUsersDto, UpdateUserByIdDto } from '@libs/types/identity/user.dto'
 
 @Injectable()
 export class AppService {
@@ -18,6 +18,26 @@ export class AppService {
 
     async getUserById(dto: MongoIdDto) {
         return lastValueFrom(this.userClient.send(IDENTITY_MESSAGE_PATTERNS.GET_USER_BY_ID, dto))
+    }
+
+    async disableUserById(dto: MongoIdDto) {
+        return lastValueFrom(this.userClient.send(IDENTITY_MESSAGE_PATTERNS.DISABLE_USER_BY_ID, dto))
+    }
+
+    async enableUserById(dto: MongoIdDto) {
+        return lastValueFrom(this.userClient.send(IDENTITY_MESSAGE_PATTERNS.ENABLE_USER_BY_ID, dto))
+    }
+
+    async deleteUserById(dto: MongoIdDto) {
+        return this.userClient.send(IDENTITY_MESSAGE_PATTERNS.DELETE_USER_BY_ID, dto)
+    }
+
+    async updateUserById(dto: MongoIdDto & UpdateUserByIdDto) {
+        return lastValueFrom(this.userClient.send(IDENTITY_MESSAGE_PATTERNS.UPDATE_USER_BY_ID, dto))
+    }
+
+    async filterUsers(dto: FilterUsersDto) {
+        return lastValueFrom(this.userClient.send(IDENTITY_MESSAGE_PATTERNS.FILTER_USERS, dto))
     }
 
     //SECTION - Identity - Auth

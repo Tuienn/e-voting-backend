@@ -26,7 +26,8 @@
             "@libs/guards/*": ["libs/guards/src/lib/*"],
             "@libs/decorators/*": ["libs/decorators/src/lib/*"],
             "@libs/modules/*": ["libs/modules/src/lib/*"],
-            "@libs/pipes/*": ["libs/pipes/src/lib/*"]
+            "@libs/pipes/*": ["libs/pipes/src/lib/*"],
+            "@libs/filters/*": ["libs/filters/src/lib/*"]
         }
     },
     "exclude": ["node_modules", "tmp"]

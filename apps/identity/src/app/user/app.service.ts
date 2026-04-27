@@ -1,9 +1,12 @@
+import { removeUndefinedObj } from '@libs/utils/object.util'
 import { Injectable } from '@nestjs/common'
-import { CreateVoterDto, GetUserByEmailDto } from '@libs/types/identity/user.dto'
+import { CreateVoterDto, FilterUsersDto, GetUserByEmailDto, UpdateUserByIdDto } from '@libs/types/identity/user.dto'
 import { handlePrismaError } from '@libs/utils/handle-prisma-error.util'
 import { PrismaService } from '../../infrastructure/prisma/prisma.service'
 import { hash } from 'argon2'
 import { MongoIdDto } from '@libs/types/common.dto'
+import { PaginationMeta } from '@libs/types/common.type'
+import { User } from '../../../generated/prisma/browser'
 
 @Injectable()
 export class AppService {
@@ -42,5 +45,99 @@ export class AppService {
                 password: true
             }
         })
+    }
+
+    async disableUserById(dto: MongoIdDto) {
+        try {
+            return await this.prisma.user.update({
+                where: {
+                    id: dto.id
+                },
+                data: {
+                    isActive: false
+                }
+            })
+        } catch (e) {
+            handlePrismaError(e)
+        }
+    }
+
+    async enableUserById(dto: MongoIdDto) {
+        try {
+            return await this.prisma.user.update({
+                where: {
+                    id: dto.id
+                },
+                data: {
+                    isActive: true
+                }
+            })
+        } catch (e) {
+            handlePrismaError(e)
+        }
+    }
+
+    async deleteUserById(dto: MongoIdDto) {
+        try {
+            await this.prisma.user.delete({
+                where: {
+                    id: dto.id
+                }
+            })
+        } catch (e) {
+            handlePrismaError(e)
+        }
+    }
+
+    async updateUserById(dto: MongoIdDto & UpdateUserByIdDto) {
+        try {
+            return await this.prisma.user.update({
+                where: {
+                    id: dto.id
+                },
+                data: {
+                    email: dto.email,
+                    name: dto.name
+                },
+                omit: {
+                    password: true
+                }
+            })
+        } catch (e) {
+            handlePrismaError(e)
+        }
+    }
+
+    async filterUsers(dto: FilterUsersDto): Promise<
+        {
+            data: Omit<User, 'password'>[]
+        } & PaginationMeta
+    > {
+        const { email, name, isActive, page = 0, pageSize = 10 } = dto ?? {}
+
+        const [data, total] = await this.prisma.$transaction([
+            this.prisma.user.findMany({
+                orderBy: { createdAt: 'desc' },
+                where: removeUndefinedObj({
+                    email: email ? { contains: email, mode: 'insensitive' } : undefined,
+                    name: name ? { contains: name, mode: 'insensitive' } : undefined,
+                    isActive: isActive
+                }),
+                omit: {
+                    password: true
+                },
+                skip: page * pageSize,
+                take: pageSize
+            }),
+            this.prisma.user.count()
+        ])
+
+        return {
+            data,
+            totalPages: Math.ceil(total / pageSize),
+            currentPage: page,
+            pageSize: pageSize,
+            total
+        }
     }
 }
