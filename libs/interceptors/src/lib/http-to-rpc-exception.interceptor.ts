@@ -24,11 +24,7 @@ const toRpcPayload = (exception: HttpException): { status: number; message: stri
     return { status, message }
 }
 
-/**
- * TCP microservices do not apply HTTP exception filters. Nest's RPC layer only preserves
- * structured errors for {@link RpcException}; plain {@link HttpException} becomes an opaque 500.
- * This interceptor maps HTTP exceptions to RpcException so TCP clients receive status + message.
- */
+//NOTE - Interceptor này dùng để chuyển đổi HttpException thành RpcException khi gọi service qua microservice (RPC) ở các TCP service
 @Injectable()
 export class HttpToRpcExceptionInterceptor implements NestInterceptor {
     intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {

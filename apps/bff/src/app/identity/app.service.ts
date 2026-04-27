@@ -6,7 +6,6 @@ import { lastValueFrom } from 'rxjs'
 import { CONFIGURATION } from '../../configuration'
 import { IDENTITY_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
 import { CreateVoterDto } from '@libs/types/identity/user.dto'
-import { rpcErrorToHttp } from '@libs/utils/rpc-client-error.util'
 
 @Injectable()
 export class AppService {
@@ -14,43 +13,23 @@ export class AppService {
 
     //SECTION - Identity - User
     async createVoter(dto: CreateVoterDto) {
-        try {
-            return await lastValueFrom(this.userClient.send(IDENTITY_MESSAGE_PATTERNS.CREATE_VOTER, dto))
-        } catch (err) {
-            throw rpcErrorToHttp(err)
-        }
+        return lastValueFrom(this.userClient.send(IDENTITY_MESSAGE_PATTERNS.CREATE_VOTER, dto))
     }
 
     async getUserById(dto: MongoIdDto) {
-        try {
-            return await lastValueFrom(this.userClient.send(IDENTITY_MESSAGE_PATTERNS.GET_USER_BY_ID, dto))
-        } catch (err) {
-            throw rpcErrorToHttp(err)
-        }
+        return lastValueFrom(this.userClient.send(IDENTITY_MESSAGE_PATTERNS.GET_USER_BY_ID, dto))
     }
 
     //SECTION - Identity - Auth
     async signIn(dto: SignInDto) {
-        try {
-            return await lastValueFrom(this.userClient.send(IDENTITY_MESSAGE_PATTERNS.SIGN_IN, dto))
-        } catch (err) {
-            throw rpcErrorToHttp(err)
-        }
+        return lastValueFrom(this.userClient.send(IDENTITY_MESSAGE_PATTERNS.SIGN_IN, dto))
     }
 
     async refreshToken(dto: RefreshTokenDto) {
-        try {
-            return await lastValueFrom(this.userClient.send(IDENTITY_MESSAGE_PATTERNS.REFRESH_TOKEN, dto))
-        } catch (err) {
-            throw rpcErrorToHttp(err)
-        }
+        return lastValueFrom(this.userClient.send(IDENTITY_MESSAGE_PATTERNS.REFRESH_TOKEN, dto))
     }
 
     async signOut(dto: RefreshTokenDto) {
-        try {
-            await lastValueFrom(this.userClient.send(IDENTITY_MESSAGE_PATTERNS.SIGN_OUT, dto))
-        } catch (err) {
-            throw rpcErrorToHttp(err)
-        }
+        return lastValueFrom(this.userClient.send(IDENTITY_MESSAGE_PATTERNS.SIGN_OUT, dto))
     }
 }

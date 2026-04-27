@@ -6,6 +6,7 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core'
 import { HttpLoggerInterceptor } from '@libs/interceptors/http-logger.interceptor'
 import { ExceptionInterceptor } from '@libs/interceptors/exception.interceptor'
 import { TimeoutInterceptor } from '@libs/interceptors/timeout.interceptor'
+import { RpcToHttpExceptionInterceptor } from '@libs/interceptors/rpc-to-http-exception.interceptor'
 import { HttpThrottlerGuard } from '@libs/guards/throttler.guard'
 import { ThrottlerModule } from '@nestjs/throttler'
 import { IdentityModule } from './identity/app.module'
@@ -50,6 +51,10 @@ import { JwtModule } from '@nestjs/jwt'
         {
             provide: APP_INTERCEPTOR,
             useClass: ExceptionInterceptor
+        },
+        {
+            provide: APP_INTERCEPTOR,
+            useClass: RpcToHttpExceptionInterceptor
         },
         {
             provide: APP_GUARD,
