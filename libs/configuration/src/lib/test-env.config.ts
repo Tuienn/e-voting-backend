@@ -1,6 +1,6 @@
 import { IsNotEmpty, IsNumber, IsString, Min } from 'class-validator'
 
-export class BffEnvConfiguration {
+export class TestEnvConfiguration {
     @IsNumber()
     HTTP_PORT: number
 
@@ -23,10 +23,19 @@ export class BffEnvConfiguration {
     @IsString()
     CORS_ORIGINS: string
 
+    /**
+     * Thời gian cửa sổ rate limit tính bằng milliseconds.
+     * Ví dụ: 60000 = 1 phút
+     * @default 60000
+     */
     @IsNumber()
     @Min(1000)
     THROTTLE_TTL: number
 
+    /**
+     * Số request tối đa được phép trong mỗi cửa sổ THROTTLE_TTL.
+     * @default 100
+     */
     @IsNumber()
     @Min(1)
     THROTTLE_LIMIT: number

@@ -45,20 +45,16 @@
         },
         "serve": {
             "continuous": true,
-            "executor": "@nx/js:node",
+            "executor": "nx:run-commands",
             "defaultConfiguration": "development",
-            "dependsOn": ["build"],
             "options": {
-                "buildTarget": "identity:build",
-                "runBuildTargetDependencies": false,
-                "runtimeArgs": ["--env-file=apps/identity/.env"]
+                "command": "node scripts/dev-service.mjs --app identity --env-file apps/identity/.env",
+                "cwd": "."
             },
             "configurations": {
-                "development": {
-                    "buildTarget": "identity:build:development"
-                },
+                "development": {},
                 "production": {
-                    "buildTarget": "identity:build:production"
+                    "command": "pnpm nx run identity:build:production && node --env-file=apps/identity/.env dist/apps/identity/main.js"
                 }
             }
         },

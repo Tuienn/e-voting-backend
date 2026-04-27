@@ -42,20 +42,16 @@
         },
         "serve": {
             "continuous": true,
-            "executor": "@nx/js:node",
+            "executor": "nx:run-commands",
             "defaultConfiguration": "development",
-            "dependsOn": ["build"],
             "options": {
-                "buildTarget": "bff:build",
-                "runBuildTargetDependencies": false,
-                "runtimeArgs": ["--env-file=apps/bff/.env"]
+                "command": "node scripts/dev-service.mjs --app bff --env-file apps/bff/.env",
+                "cwd": "."
             },
             "configurations": {
-                "development": {
-                    "buildTarget": "bff:build:development"
-                },
+                "development": {},
                 "production": {
-                    "buildTarget": "bff:build:production"
+                    "command": "pnpm nx run bff:build:production && node --env-file=apps/bff/.env dist/apps/bff/main.js"
                 }
             }
         },
