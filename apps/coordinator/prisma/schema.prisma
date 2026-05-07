@@ -17,6 +17,7 @@ datasource db {
 enum ElectionStatus {
   PENDING
   ACTIVE
+  CLOSED
   COMPLETED
 }
 
@@ -27,12 +28,18 @@ model Election {
   candidateIds   String[]
   electionVoters ElectionVoter[]
   votes          Vote[]
-  startDate      DateTime?
-  endDate        DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
 
-  @@index([status, startDate, endDate]) //lấy các election đang ACTIVE trong khoảng thời gian
+  merkleRoot    String?
+  blockchainRef String?
+
+  collectivePublicKey String?
+
+  startDate DateTime?
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([status, startDate, endDate]) //lấy các election theo status trong khoảng thời gian
   @@map("elections")
 }
 
@@ -57,19 +64,18 @@ model Vote {
   electionId String   @db.ObjectId
   election   Election @relation(fields: [electionId], references: [id])
 
-  electionVoterId String        @db.ObjectId
-  electionVoter   ElectionVoter @relation(fields: [electionVoterId], references: [id])
-
-  candidateIds String[]
+  voterId String        @db.ObjectId
+  voter   ElectionVoter @relation(fields: [voterId], references: [id])
 
   blindedVoteHash String
   blockchainRef   String?
+  revealed        Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([electionId, electionVoterId])
-  @@index([electionVoterId])
+  @@unique([electionId, voterId])
+  @@index([voterId, revealed])
   @@index([electionId, createdAt]) //lấy votes của election X, sort theo thời gian tạo
   @@map("votes")
 }

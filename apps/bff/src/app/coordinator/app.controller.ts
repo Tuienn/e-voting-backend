@@ -6,6 +6,9 @@ import { Public } from '@libs/decorators/public.decorator'
 import { Roles } from '@libs/decorators/roles.decorator'
 import { ResponseDto } from '@libs/types/response.dto'
 import { MongoIdDto } from '@libs/types/common.dto'
+import { CurrentUser } from '@libs/decorators/current-user.decorator'
+import { RequestWithUser } from '@libs/types/identity/auth.type'
+import { SignBlindedVoteDto, SubmitUnblindedVoteDto } from '@libs/types/coordinator/vote.dto'
 
 @ApiTags('Coordinator')
 @Controller('coordinator')
@@ -134,6 +137,92 @@ export class AppController {
         return new ResponseDto({
             data: result,
             message: 'Election retrieved successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    //SESSION- Coordinator - Vote
+    @Roles('VOTER')
+    @Post('vote/:id/start-session')
+    @ApiParam({
+        name: 'id',
+        type: String,
+        description: 'Election ID',
+        examples: { example1: { value: '69f6a3eac5bfa7c9d91adccb' } }
+    })
+    @HttpCode(HttpStatus.OK)
+    async startVoteSession(@Param() dto: MongoIdDto, @CurrentUser() user: RequestWithUser) {
+        const result = await this.appService.startVoteSession({
+            electionId: dto.id,
+            voterId: user.userId
+        })
+
+        return new ResponseDto({
+            data: result,
+            message: 'Vote session started successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Roles('VOTER')
+    @Post('vote/sign')
+    @ApiBody({
+        type: SignBlindedVoteDto,
+        examples: {
+            example1: {
+                value: {
+                    rHex: '1234567890',
+                    sessionId: 'aef44e20-48d8-4817-a1ae-3cfe79f9e049'
+                }
+            }
+        }
+    })
+    @HttpCode(HttpStatus.OK)
+    async signBlindedVote(@Body() dto: SignBlindedVoteDto) {
+        const result = await this.appService.signBlindedVote(dto)
+
+        return new ResponseDto({
+            data: result,
+            message: 'Blinded vote signed successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Roles('VOTER')
+    @Post('vote/:electionId/submit')
+    @ApiParam({
+        name: 'electionId',
+        type: String,
+        description: 'Election ID',
+        examples: { example1: { value: '69f6a3eac5bfa7c9d91adccb' } }
+    })
+    @ApiBody({
+        type: SubmitUnblindedVoteDto,
+        examples: {
+            example1: {
+                value: {
+                    bindedVoteHash: '1234567890',
+                    signatureHex: '1234567890',
+                    sessionId: 'aef44e20-48d8-4817-a1ae-3cfe79f9e049'
+                }
+            }
+        }
+    })
+    @HttpCode(HttpStatus.OK)
+    async submitUnblindedVote(
+        @Param() params: Pick<SubmitUnblindedVoteDto, 'electionId'>,
+        @Body() dto: Omit<SubmitUnblindedVoteDto, 'electionId' | 'voterId'>,
+        @CurrentUser() user: RequestWithUser
+    ) {
+        const result = await this.appService.submitUnblindedVote({
+            ...dto,
+            electionId: params.electionId,
+            voterId: user.userId
+        })
+
+        return new ResponseDto({
+            data: result,
+            message: 'Unblinded vote submitted successfully',
             statusCode: HttpStatus.OK
         })
     }

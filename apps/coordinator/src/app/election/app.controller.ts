@@ -2,7 +2,12 @@ import { COORDINATOR_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.c
 import { Controller } from '@nestjs/common'
 import { AppService } from './app.service'
 import { MessagePattern, Payload } from '@nestjs/microservices'
-import { CreateElectionDto, FilterElectionsDto, VoterIdsDto } from '@libs/types/coordinator/election.dto'
+import {
+    GetVoterInElectionDto,
+    CreateElectionDto,
+    FilterElectionsDto,
+    VoterIdsDto
+} from '@libs/types/coordinator/election.dto'
 import { MongoIdDto } from '@libs/types/common.dto'
 
 @Controller()
@@ -37,5 +42,10 @@ export class AppController {
     @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTION_BY_ID)
     async getElectionById(@Payload() dto: MongoIdDto) {
         return await this.appService.getElectionById(dto)
+    }
+
+    @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.GET_VOTER_IN_ELECTION)
+    async checkVoterInElection(@Payload() dto: GetVoterInElectionDto) {
+        return await this.appService.getVoterInElection(dto)
     }
 }

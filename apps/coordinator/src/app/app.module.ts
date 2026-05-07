@@ -10,6 +10,7 @@ import { TcpLoggerInterceptor } from '@libs/interceptors/tcp-logger.interceptor'
 import { HttpToRpcExceptionInterceptor } from '@libs/interceptors/http-to-rpc-exception.interceptor'
 import { ElectionModule } from './election/app.module'
 import { PrismaModule } from '../infrastructure/prisma/prisma.module'
+import { VoteModule } from './vote/app.module'
 
 @Module({
     imports: [
@@ -19,10 +20,16 @@ import { PrismaModule } from '../infrastructure/prisma/prisma.module'
                 serviceName: CONFIGURATION.COORDINATOR_CONFIG.IDENTITY_TCP_NAME,
                 host: CONFIGURATION.COORDINATOR_CONFIG.IDENTITY_TCP_HOST,
                 port: CONFIGURATION.COORDINATOR_CONFIG.IDENTITY_TCP_PORT
-            }
+            },
+            ...CONFIGURATION.COORDINATOR_CONFIG.SIGNING_NODES_TCP_NAME.map((serviceName, index) => ({
+                serviceName,
+                host: CONFIGURATION.COORDINATOR_CONFIG.SIGNING_NODES_TCP_HOST[index],
+                port: CONFIGURATION.COORDINATOR_CONFIG.SIGNING_NODES_TCP_PORT[index]
+            }))
         ]),
         PrismaModule,
-        ElectionModule
+        ElectionModule,
+        VoteModule
     ],
     providers: [
         {

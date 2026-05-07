@@ -1,0 +1,6 @@
+docker exec -it mongodb mongosh -u root -p password --authenticationDatabase admin --eval '
+  rs.initiate({
+    _id: "rs0",
+    members: [{ _id: 0, host: "localhost:27017" }]
+  })
+'

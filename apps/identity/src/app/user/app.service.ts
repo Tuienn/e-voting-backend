@@ -30,7 +30,7 @@ export class AppService {
         await this.cacheManager.set(
             `blacklist:user:${userId}`,
             true,
-            CONFIGURATION.IDENTITY_CONFIG.JWT_ACCESS_EXPIRES_IN * 1000
+            CONFIGURATION.IDENTITY_CONFIG.JWT_ACCESS_EXPIRES_IN * 1000 // Convert seconds to milliseconds
         )
     }
 
@@ -206,14 +206,15 @@ export class AppService {
         const existingEmails = new Set(existingUsers.map((user) => user.email))
 
         // Duyệt qua dto.data một lần, vừa lọc vừa hash password
-        const newDtos: { email: string; name: string; password: string }[] = []
+        const newDtos: { email: string; name: string; password: string; role: Role }[] = []
         for (const item of dto.data) {
             if (!existingEmails.has(item.email)) {
                 const hashedPassword = await hash(item.password)
                 newDtos.push({
                     email: item.email,
                     name: item.name,
-                    password: hashedPassword
+                    password: hashedPassword,
+                    role: item.role as Role
                 })
             }
         }

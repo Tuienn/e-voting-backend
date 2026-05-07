@@ -1,5 +1,5 @@
 import { CurrentUser } from '@libs/decorators/current-user.decorator'
-import { Body, Controller, Delete, Get, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common'
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common'
 import { AppService } from './app.service'
 import { CreateBulkUsersDto, CreateUserDto, FilterUsersDto, UpdateUserByIdDto } from '@libs/types/identity/user.dto'
 import { ApiBody, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger'
@@ -33,10 +33,10 @@ export class AppController {
         type: CreateUserDto,
         examples: {
             voter: {
-                value: { email: 'voter@example.com', password: 'password123', name: 'John Doe', role: 'VOTER' }
+                value: { email: 'voter1@example.com', password: 'password123', name: 'John Doe', role: 'VOTER' }
             },
             candidate: {
-                value: { email: 'candidate@example.com', password: 'password123', name: 'Jane Doe', role: 'CANDIDATE' }
+                value: { email: 'candidate1@example.com', password: 'password123', name: 'Jane Doe', role: 'CANDIDATE' }
             },
             admin: {
                 value: { email: 'admin@example.com', password: '12345678', name: 'Admin', role: 'ADMIN' }
@@ -61,8 +61,21 @@ export class AppController {
             example1: {
                 value: {
                     data: [
-                        { email: 'nguyen@example.com', password: 'password123', name: 'John Doe' },
-                        { email: 'test@gmail.com', password: 'password123', name: 'Test User' }
+                        { email: 'voter1@example.com', password: 'password123', name: 'John Doe' },
+                        { email: 'voter2@example.com', password: 'password123', name: 'Jane Doe' },
+                        { email: 'voter3@example.com', password: 'password123', name: 'Doe Smith' },
+                        {
+                            email: 'candidate1@example.com',
+                            password: 'password123',
+                            name: 'Emily Jones',
+                            role: 'CANDIDATE'
+                        },
+                        {
+                            email: 'candidate2@example.com',
+                            password: 'password123',
+                            name: 'Michael Brown',
+                            role: 'CANDIDATE'
+                        }
                     ]
                 }
             }
@@ -190,6 +203,7 @@ export class AppController {
 
     //SECTION - Identity - Auth
     @Public()
+    @HttpCode(HttpStatus.OK)
     @Post('auth/sign-in')
     @ApiBody({
         type: SignInDto,
@@ -213,6 +227,7 @@ export class AppController {
     }
 
     @Post('auth/refresh-token')
+    @HttpCode(HttpStatus.OK)
     @ApiBody({
         type: RefreshTokenDto,
         examples: {
@@ -232,6 +247,7 @@ export class AppController {
     }
 
     @Post('auth/sign-out')
+    @HttpCode(HttpStatus.OK)
     @ApiBody({
         type: RefreshTokenDto,
         examples: {

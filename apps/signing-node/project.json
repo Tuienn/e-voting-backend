@@ -43,19 +43,49 @@
             "dependsOn": ["prune-lockfile", "copy-workspace-modules"],
             "executor": "nx:noop"
         },
+        "build-watch": {
+            "continuous": true,
+            "executor": "nx:run-commands",
+            "options": {
+                "command": "pnpm exec webpack-cli build --watch --node-env=development",
+                "cwd": "apps/signing-node",
+                "readyWhen": "compiled successfully"
+            }
+        },
+        "serve-node1": {
+            "continuous": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build-watch"],
+            "options": {
+                "command": "node --watch --env-file=apps/signing-node/.node1.env dist/apps/signing-node/main.js",
+                "cwd": "."
+            }
+        },
+        "serve-node2": {
+            "continuous": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build-watch"],
+            "options": {
+                "command": "node --watch --env-file=apps/signing-node/.node2.env dist/apps/signing-node/main.js",
+                "cwd": "."
+            }
+        },
+        "serve-node3": {
+            "continuous": true,
+            "executor": "nx:run-commands",
+            "dependsOn": ["build-watch"],
+            "options": {
+                "command": "node --watch --env-file=apps/signing-node/.node3.env dist/apps/signing-node/main.js",
+                "cwd": "."
+            }
+        },
         "serve": {
             "continuous": true,
             "executor": "nx:run-commands",
-            "defaultConfiguration": "development",
+            "dependsOn": ["serve-node1", "serve-node2", "serve-node3"],
             "options": {
-                "command": "node scripts/dev-service.mjs --app signing-node --env-file apps/signing-node/.env",
+                "command": "node -e \"process.stdin.resume()\"",
                 "cwd": "."
-            },
-            "configurations": {
-                "development": {},
-                "production": {
-                    "command": "pnpm nx run signing-node:build:production && node --env-file=apps/signing-node/.env dist/apps/signing-node/main.js"
-                }
             }
         },
         "test": {

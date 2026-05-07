@@ -10,6 +10,7 @@ import {
     IsDateString,
     IsDefined,
     IsEnum,
+    IsMongoId,
     IsOptional,
     IsString,
     MaxLength,
@@ -59,4 +60,14 @@ export class VoterIdsDto {
     @ArrayNotEmpty({ message: invalidDataField('voterIds', 'not empty array') })
     @ArrayUnique({ message: invalidDataField('voterIds', 'unique MongoDB ObjectId') })
     voterIds: string[]
+}
+
+export class GetVoterInElectionDto {
+    @IsDefined({ message: missingDataField('electionId') })
+    @IsMongoId({ message: invalidDataField('electionId', 'MongoDB ObjectId') })
+    electionId: string
+
+    @IsDefined({ message: missingDataField('voterId') })
+    @IsMongoId({ message: invalidDataField('voterId', 'MongoDB ObjectId') })
+    voterId: string
 }
