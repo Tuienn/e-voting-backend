@@ -1,9 +1,9 @@
-import type { EcParams, EcPoint } from './params';
-import { randomScalar, scalarMultBase, pointAdd } from './utils';
+import type { EcParams, EcPoint } from './params'
+import { randomScalar, scalarMultBase, pointAdd } from './utils'
 
 export interface Commitment {
-  nonce: bigint;
-  commitment: EcPoint;
+    nonce: bigint
+    commitment: EcPoint
 }
 
 /**
@@ -13,14 +13,14 @@ export interface Commitment {
  * QUAN TRỌNG: k_i chỉ được dùng MỘT LẦN. Tái sử dụng → lộ khóa riêng.
  */
 export function generateCommitment(params: EcParams): Commitment {
-  const nonce = randomScalar(params.n);
-  const commitment = scalarMultBase(nonce, params);
-  return { nonce, commitment };
+    const nonce = randomScalar(params.n)
+    const commitment = scalarMultBase(nonce, params)
+    return { nonce, commitment }
 }
 
 /**
  * Commitment tập thể: R_agg = Σ R_i
  */
 export function computeCollectiveCommitment(commitments: EcPoint[], params: EcParams): EcPoint {
-  return commitments.reduce((acc, c) => pointAdd(acc, c), params.Point.ZERO);
+    return commitments.reduce((acc, c) => pointAdd(acc, c), params.Point.ZERO)
 }

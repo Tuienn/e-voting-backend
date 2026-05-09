@@ -1,5 +1,5 @@
-import type { EcParams } from './params';
-import { modN } from './utils';
+import type { EcParams } from './params'
+import { modN } from './utils'
 
 /**
  * Pha Ký (Signing) — thực hiện bởi mỗi Signing Node.
@@ -7,7 +7,7 @@ import { modN } from './utils';
  *   s_i = (k_i - d_i · r) mod n
  */
 export function signPartial(ki: bigint, di: bigint, r: bigint, params: EcParams): bigint {
-  return modN(ki - di * r, params.n);
+    return modN(ki - di * r, params.n)
 }
 
 /**
@@ -16,5 +16,5 @@ export function signPartial(ki: bigint, di: bigint, r: bigint, params: EcParams)
  *   s = Σ s_i mod n
  */
 export function aggregateSignatures(partialSigs: bigint[], params: EcParams): bigint {
-  return partialSigs.reduce((acc, si) => modN(acc + si, params.n), 0n);
+    return partialSigs.reduce((acc, si) => modN(acc + si, params.n), 0n)
 }

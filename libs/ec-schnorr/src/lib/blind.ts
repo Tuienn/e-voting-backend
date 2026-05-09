@@ -1,12 +1,12 @@
-import type { EcParams, EcPoint } from './params';
-import { randomScalar, scalarMultBase, scalarMult, pointAdd, pointToBuffer, hashToScalar, modN } from './utils';
+import type { EcParams, EcPoint } from './params'
+import { randomScalar, scalarMultBase, scalarMult, pointAdd, pointToBuffer, hashToScalar, modN } from './utils'
 
 export interface BlindResult {
-  r: bigint;
-  alpha: bigint;
-  beta: bigint;
-  h: bigint;
-  Cprime: EcPoint;
+    r: bigint
+    alpha: bigint
+    beta: bigint
+    h: bigint
+    Cprime: EcPoint
 }
 
 /**
@@ -30,22 +30,17 @@ export interface BlindResult {
  *   3. h = Hash(M ‖ C') mod n
  *   4. r = (h - β) mod n
  */
-export function blind(
-  message: Uint8Array,
-  C: EcPoint,
-  params: EcParams,
-  P_agg: EcPoint,
-): BlindResult {
-  const { n } = params;
-  const alpha = randomScalar(n);
-  const beta = randomScalar(n);
+export function blind(message: Uint8Array, C: EcPoint, params: EcParams, P_agg: EcPoint): BlindResult {
+    const { n } = params
+    const alpha = randomScalar(n)
+    const beta = randomScalar(n)
 
-  const aG = scalarMultBase(alpha, params);
-  const bP = scalarMult(P_agg, beta);
-  const Cprime = pointAdd(pointAdd(C, aG), bP);
+    const aG = scalarMultBase(alpha, params)
+    const bP = scalarMult(P_agg, beta)
+    const Cprime = pointAdd(pointAdd(C, aG), bP)
 
-  const h = hashToScalar([message, pointToBuffer(Cprime)], n);
-  const r = modN(h - beta, n);
+    const h = hashToScalar([message, pointToBuffer(Cprime)], n)
+    const r = modN(h - beta, n)
 
-  return { r, alpha, beta, h, Cprime };
+    return { r, alpha, beta, h, Cprime }
 }

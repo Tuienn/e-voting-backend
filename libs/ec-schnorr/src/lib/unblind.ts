@@ -1,9 +1,9 @@
-import type { EcParams } from './params';
-import { modN } from './utils';
+import type { EcParams } from './params'
+import { modN } from './utils'
 
 export interface UnblindResult {
-  h: bigint;
-  sPrime: bigint;
+    h: bigint
+    sPrime: bigint
 }
 
 /**
@@ -14,6 +14,6 @@ export interface UnblindResult {
  * Output: chữ ký cuối cùng (h, s')
  */
 export function unblind(s: bigint, alpha: bigint, h: bigint, params: EcParams): UnblindResult {
-  const sPrime = modN(s + alpha, params.n);
-  return { h, sPrime };
+    const sPrime = modN(s + alpha, params.n)
+    return { h, sPrime }
 }
