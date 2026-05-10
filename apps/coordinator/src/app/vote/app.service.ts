@@ -1,4 +1,10 @@
-import { SignBlindedVoteDto, StartSessionDto, SubmitBlindedVoteHashDto } from '@libs/types/coordinator/vote.dto'
+import {
+    GetVoteByBlindedHashDto,
+    SignBlindedVoteDto,
+    StartSessionDto,
+    SubmitBlindedVoteHashDto,
+    UpdateRevealedStatusDto
+} from '@libs/types/coordinator/vote.dto'
 import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common'
 import { CONFIGURATION } from '../../configuration'
 import { ClientProxy } from '@nestjs/microservices'
@@ -21,6 +27,7 @@ import {
     isValidScalarHex,
     pointToHex
 } from '@libs/ec-schnorr'
+import { MongoIdDto } from '@libs/types/common.dto'
 
 type SessionSignedCache = {
     signed: boolean
@@ -230,5 +237,51 @@ export class AppService {
         } catch (e) {
             handlePrismaError(e)
         }
+    }
+
+    async getVoteByBlindedHash(dto: GetVoteByBlindedHashDto) {
+        return await this.prisma.vote.findUnique({
+            where: {
+                electionId_blindedVoteHash: {
+                    electionId: dto.electionId,
+                    blindedVoteHash: dto.blindedVoteHash
+                }
+            }
+        })
+    }
+
+    async checkExistUnrevealedVote(dto: MongoIdDto): Promise<boolean> {
+        const remainingUnrevealedVote = await this.prisma.vote.findFirst({
+            where: {
+                electionId: dto.id,
+                revealed: false
+            },
+            select: { id: true }
+        })
+
+        return !!remainingUnrevealedVote
+    }
+
+    async updateRevealedStatus(dto: UpdateRevealedStatusDto) {
+        const vote = await this.getVoteByBlindedHash({
+            electionId: dto.electionId,
+            blindedVoteHash: dto.blindedVoteHash
+        })
+
+        if (!vote) {
+            throw new NotFoundException('Vote not found')
+        }
+
+        await this.prisma.vote.update({
+            where: {
+                electionId_blindedVoteHash: {
+                    electionId: dto.electionId,
+                    blindedVoteHash: dto.blindedVoteHash
+                }
+            },
+            data: {
+                revealed: true
+            }
+        })
     }
 }

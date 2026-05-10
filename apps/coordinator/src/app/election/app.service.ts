@@ -223,46 +223,44 @@ export class AppService {
         const collectivePublicKeyHex = await this.collectivePublicKey()
 
         try {
-            return await this.prisma.$transaction(async (tx) => {
-                const election = await tx.election.findUniqueOrThrow({
-                    where: {
-                        id: dto.id
-                    },
-                    include: {
-                        electionVoters: true
-                    }
-                })
-
-                if (election.startDate) {
-                    throw new ConflictException('Election already started')
+            const election = await this.prisma.election.findUniqueOrThrow({
+                where: {
+                    id: dto.id
+                },
+                include: {
+                    electionVoters: true
                 }
+            })
 
-                if (election.status !== ElectionStatus.PENDING) {
-                    throw new ConflictException('Only PENDING election can be started')
+            if (election.startDate) {
+                throw new ConflictException('Election already started')
+            }
+
+            if (election.status !== ElectionStatus.PENDING) {
+                throw new ConflictException('Only PENDING election can be started')
+            }
+
+            if (election.candidateIds.length < 2) {
+                throw new UnprocessableEntityException('At least 2 candidates are required')
+            }
+
+            if (!election.electionVoters || election.electionVoters.length < 2) {
+                throw new UnprocessableEntityException('At least 2 voters are required to start the election')
+            }
+
+            return await this.prisma.election.update({
+                where: {
+                    id: dto.id
+                },
+                data: {
+                    status: ElectionStatus.ACTIVE,
+                    startDate: new Date(),
+                    collectivePublicKey: collectivePublicKeyHex
+                },
+                omit: {
+                    blockchainRef: true,
+                    merkleRoot: true
                 }
-
-                if (election.candidateIds.length < 2) {
-                    throw new UnprocessableEntityException('At least 2 candidates are required')
-                }
-
-                if (!election.electionVoters || election.electionVoters.length < 2) {
-                    throw new UnprocessableEntityException('At least 2 voters are required to start the election')
-                }
-
-                return await tx.election.update({
-                    where: {
-                        id: dto.id
-                    },
-                    data: {
-                        status: ElectionStatus.ACTIVE,
-                        startDate: new Date(),
-                        collectivePublicKey: collectivePublicKeyHex
-                    },
-                    omit: {
-                        blockchainRef: true,
-                        merkleRoot: true
-                    }
-                })
             })
         } catch (e) {
             handlePrismaError(e)
@@ -271,32 +269,55 @@ export class AppService {
 
     async closeElection(dto: MongoIdDto) {
         try {
-            return await this.prisma.$transaction(async (tx) => {
-                const election = await tx.election.findUniqueOrThrow({
-                    where: {
-                        id: dto.id
-                    }
-                })
+            const election = await this.prisma.election.findUniqueOrThrow({
+                where: {
+                    id: dto.id
+                }
+            })
 
-                if (!election.startDate) {
-                    throw new ConflictException('Election not started')
-                }
+            if (!election.startDate) {
+                throw new ConflictException('Election not started')
+            }
 
-                if (election.endDate) {
-                    throw new ConflictException('Election already closed')
+            if (election.endDate) {
+                throw new ConflictException('Election already closed')
+            }
+            if (election.status !== ElectionStatus.ACTIVE) {
+                throw new ConflictException('Only ACTIVE election can be closed')
+            }
+            return await this.prisma.election.update({
+                where: {
+                    id: dto.id
+                },
+                data: {
+                    status: ElectionStatus.CLOSED,
+                    endDate: new Date()
                 }
-                if (election.status !== ElectionStatus.ACTIVE) {
-                    throw new ConflictException('Only ACTIVE election can be closed')
+            })
+        } catch (e) {
+            handlePrismaError(e)
+        }
+    }
+
+    async completeElection(dto: MongoIdDto) {
+        try {
+            const election = await this.prisma.election.findUniqueOrThrow({
+                where: {
+                    id: dto.id
                 }
-                return await tx.election.update({
-                    where: {
-                        id: dto.id
-                    },
-                    data: {
-                        status: ElectionStatus.CLOSED,
-                        endDate: new Date()
-                    }
-                })
+            })
+
+            if (election.status !== ElectionStatus.CLOSED) {
+                throw new ConflictException('Only CLOSED election can be completed')
+            }
+
+            return await this.prisma.election.update({
+                where: {
+                    id: dto.id
+                },
+                data: {
+                    status: ElectionStatus.COMPLETED
+                }
             })
         } catch (e) {
             handlePrismaError(e)

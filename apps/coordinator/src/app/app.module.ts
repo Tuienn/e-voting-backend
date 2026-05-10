@@ -12,7 +12,6 @@ import { HttpToRpcExceptionInterceptor } from '@libs/interceptors/http-to-rpc-ex
 import { ElectionModule } from './election/app.module'
 import { PrismaModule } from '../infrastructure/prisma/prisma.module'
 import { VoteModule } from './vote/app.module'
-import { RevealModule } from './reveal/app.module'
 
 @Module({
     imports: [
@@ -37,8 +36,7 @@ import { RevealModule } from './reveal/app.module'
         }),
         PrismaModule,
         ElectionModule,
-        VoteModule,
-        RevealModule
+        VoteModule
     ],
     providers: [
         {

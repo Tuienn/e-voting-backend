@@ -1,4 +1,3 @@
-import { RevealVoteDto } from '@libs/types/coordinator/reveal.dto'
 import { CreateElectionDto, FilterElectionsDto, VoterIdsDto } from '@libs/types/coordinator/election.dto'
 import { Inject, Injectable } from '@nestjs/common'
 import { CONFIGURATION } from '../../configuration'
@@ -50,10 +49,5 @@ export class AppService {
 
     async submitBlindedVoteHash(dto: SubmitBlindedVoteHashDto) {
         return lastValueFrom(this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.SUBMIT_UNBLINDED_VOTE, dto))
-    }
-
-    //SECTION - Coordinator - Reveal
-    async revealVote(dto: RevealVoteDto) {
-        return lastValueFrom(this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.REVEAL_VOTE, dto))
     }
 }

@@ -1,6 +1,6 @@
 import { GetVoterInElectionDto } from './election.dto'
 import { SignPartialDto } from '../signing-node/app.dto'
-import { IsDefined, IsHexadecimal, IsUUID } from 'class-validator'
+import { IsDefined, IsHexadecimal, IsMongoId, IsUUID } from 'class-validator'
 import { invalidDataField, missingDataField } from '@libs/constants/text.constant'
 
 export class StartSessionDto extends GetVoterInElectionDto {}
@@ -20,3 +20,15 @@ export class SubmitBlindedVoteHashDto extends GetVoterInElectionDto {
     @IsHexadecimal({ message: invalidDataField('signatureHex', 'hexadecimal') })
     signatureHex: string
 }
+
+export class GetVoteByBlindedHashDto {
+    @IsDefined({ message: missingDataField('blindedVoteHash') })
+    @IsHexadecimal({ message: invalidDataField('blindedVoteHash', 'hexadecimal') })
+    blindedVoteHash: string
+
+    @IsDefined({ message: missingDataField('electionId') })
+    @IsMongoId({ message: invalidDataField('electionId', 'MongoDB ObjectId') })
+    electionId: string
+}
+
+export class UpdateRevealedStatusDto extends GetVoteByBlindedHashDto {}

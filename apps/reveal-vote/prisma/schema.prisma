@@ -1,0 +1,38 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+
+type SignatureRevealedVote {
+  h String
+  sPrime String
+}
+
+model RevealedVote {
+    id String @id @default(auto()) @map("_id") @db.ObjectId
+
+    electionId String   @db.ObjectId 
+
+    candidateId String @db.ObjectId
+
+    blindedVoteHash String
+    blockchainRef   String?
+    signature SignatureRevealedVote
+    revealedAt DateTime @default(now())
+
+    @@index([electionId, candidateId]) //lấy revealed votes của election X, sort theo thời gian revealed
+    @@unique([electionId, blindedVoteHash]) //mỗi vote chỉ được reveal 1 lần cho 1 election
+    @@map("revealed_votes")
+}

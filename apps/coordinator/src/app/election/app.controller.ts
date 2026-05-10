@@ -39,6 +39,11 @@ export class AppController {
         return await this.appService.closeElection(dto)
     }
 
+    @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.COMPLETE_ELCTION)
+    async completeElection(@Payload() dto: MongoIdDto) {
+        return await this.appService.completeElection(dto)
+    }
+
     @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTION_BY_ID)
     async getElectionById(@Payload() dto: MongoIdDto) {
         return await this.appService.getElectionById(dto)
@@ -47,5 +52,10 @@ export class AppController {
     @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.GET_VOTER_IN_ELECTION)
     async checkVoterInElection(@Payload() dto: GetVoterInElectionDto) {
         return await this.appService.getVoterInElection(dto)
+    }
+
+    @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.COLLECTIVE_PUBLIC_KEY)
+    async collectivePublicKey() {
+        return await this.appService.collectivePublicKey()
     }
 }

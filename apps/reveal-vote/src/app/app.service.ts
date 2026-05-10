@@ -1,22 +1,26 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
+import { COORDINATOR_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
 import {
     BadRequestException,
     ConflictException,
     ForbiddenException,
+    Inject,
     Injectable,
     NotFoundException
 } from '@nestjs/common'
-import { PrismaService } from '../../infrastructure/prisma/prisma.service'
-import { RevealVoteDto } from '@libs/types/coordinator/reveal.dto'
-import { AppService as ElectionService } from '../election/app.service'
-import { ElectionStatus } from '../../../generated/prisma/enums'
+import { PrismaService } from '../infrastructure/prisma/prisma.service'
+import { RevealVoteDto } from '@libs/types/reveal-vote/app.dto'
 import { EcParams, hashToScalar, hexToPoint, hexToScalar, scalarToBuffer, scalarToHex, verify } from '@libs/ec-schnorr'
+import { CONFIGURATION } from '../configuration'
+import { ClientProxy } from '@nestjs/microservices'
+import { lastValueFrom } from 'rxjs'
 
 @Injectable()
 export class AppService {
     constructor(
         private readonly prisma: PrismaService,
-        private readonly electionService: ElectionService
+        @Inject(`TCP_${CONFIGURATION.REVEAL_VOTE_CONFIG.COORDINATOR_TCP_NAME}`)
+        private readonly coordinatorClient: ClientProxy
     ) {}
 
     private async computeBlindedVoteHash(candidateId: string, h: bigint, sPrime: bigint, params: EcParams) {
@@ -28,8 +32,15 @@ export class AppService {
 
     async revealVote(dto: RevealVoteDto, ecParams: EcParams) {
         //SECTION - Kiểm tra election
-        const existElection = await this.electionService.getElectionById({ id: dto.electionId })
-        const collectivePublicKey = await this.electionService.collectivePublicKey()
+        const existElection = await lastValueFrom(
+            this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTION_BY_ID, {
+                id: dto.electionId
+            })
+        )
+
+        const collectivePublicKey = await lastValueFrom(
+            this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.COLLECTIVE_PUBLIC_KEY, {})
+        )
 
         if (existElection!.status !== 'CLOSED') {
             throw new ForbiddenException('Election is not closed')
@@ -77,14 +88,12 @@ export class AppService {
         }
 
         //SECTION - Kiểm tra vote có tồn tại trong bảng votes không
-        const existSubmittedVote = await this.prisma.vote.findUnique({
-            where: {
-                electionId_blindedVoteHash: {
-                    electionId: dto.electionId,
-                    blindedVoteHash: computedBlindedVoteHash
-                }
-            }
-        })
+        const existSubmittedVote = await lastValueFrom(
+            this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.GET_VOTE_BY_BLINDED_HASH, {
+                electionId: dto.electionId,
+                blindedVoteHash: computedBlindedVoteHash
+            })
+        )
 
         if (!existSubmittedVote) {
             throw new NotFoundException('No corresponding submitted vote found for the revealed vote')
@@ -94,54 +103,35 @@ export class AppService {
             throw new ConflictException('This vote has already been revealed')
         }
 
-        return await this.prisma.$transaction(async (tx) => {
-            //SECTION - Lưu revealed vote vào database
-            const revealedVote = await tx.revealedVote.create({
-                data: {
-                    electionId: dto.electionId,
-                    candidateId: dto.candidateId,
-                    blindedVoteHash: computedBlindedVoteHash,
-                    signature: {
-                        h: dto.h,
-                        sPrime: dto.sPrime
-                    }
+        const revealedVote = await this.prisma.revealedVote.create({
+            data: {
+                electionId: dto.electionId,
+                candidateId: dto.candidateId,
+                blindedVoteHash: computedBlindedVoteHash,
+                signature: {
+                    h: dto.h,
+                    sPrime: dto.sPrime
                 }
-            })
-
-            //SECTION - Cập nhật revealed = true cho vote đã được reveal
-            await tx.vote.update({
-                where: {
-                    electionId_blindedVoteHash: {
-                        electionId: dto.electionId,
-                        blindedVoteHash: computedBlindedVoteHash
-                    }
-                },
-                data: {
-                    revealed: true
-                }
-            })
-
-            //SECTION - Auto-transition closed → completed khi mọi phiếu đã reveal
-            const remainingUnrevealedVote = await tx.vote.findFirst({
-                where: {
-                    electionId: dto.electionId,
-                    revealed: false
-                },
-                select: { id: true }
-            })
-
-            if (!remainingUnrevealedVote) {
-                await tx.election.update({
-                    where: {
-                        id: dto.electionId
-                    },
-                    data: {
-                        status: ElectionStatus.COMPLETED
-                    }
-                })
             }
-
-            return { ...revealedVote, electionCompleted: !remainingUnrevealedVote }
         })
+
+        //SECTION - Cập nhật revealed = true cho vote đã được reveal
+        await this.coordinatorClient.emit(COORDINATOR_MESSAGE_PATTERNS.UPDATE_REVEALED_STATUS, {
+            electionId: dto.electionId,
+            blindedVoteHash: computedBlindedVoteHash
+        })
+
+        //SECTION - Auto-transition closed → completed khi mọi phiếu đã reveal
+        const remainingUnrevealedVote = await lastValueFrom(
+            this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.CHECK_EXIST_UNREVEALED_VOTE, {
+                id: dto.electionId
+            })
+        )
+
+        if (!remainingUnrevealedVote) {
+            await this.coordinatorClient.emit(COORDINATOR_MESSAGE_PATTERNS.COMPLETE_ELCTION, { id: dto.electionId })
+        }
+
+        return { ...revealedVote, electionCompleted: !remainingUnrevealedVote }
     }
 }

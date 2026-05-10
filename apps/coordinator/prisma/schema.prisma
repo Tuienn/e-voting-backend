@@ -28,7 +28,6 @@ model Election {
   candidateIds   String[]
   electionVoters ElectionVoter[]
   votes          Vote[]
-  revealVotes    RevealedVote[]
 
   merkleRoot    String?
   blockchainRef String?
@@ -82,25 +81,3 @@ model Vote {
   @@map("votes")
 }
 
-type SignatureRevealedVote {
-  h String
-  sPrime String
-}
-
-model RevealedVote {
-    id String @id @default(auto()) @map("_id") @db.ObjectId
-
-    electionId String   @db.ObjectId 
-    election   Election @relation(fields: [electionId], references: [id])
-
-    candidateId String @db.ObjectId
-
-    blindedVoteHash String
-    blockchainRef   String?
-    signature SignatureRevealedVote
-    revealedAt DateTime @default(now())
-
-    @@index([electionId, candidateId]) //lấy revealed votes của election X, sort theo thời gian revealed
-    @@unique([electionId, blindedVoteHash]) //mỗi vote chỉ được reveal 1 lần cho 1 election
-    @@map("revealed_votes")
-}

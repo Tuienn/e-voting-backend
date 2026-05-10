@@ -9,7 +9,6 @@ import { MongoIdDto } from '@libs/types/common.dto'
 import { CurrentUser } from '@libs/decorators/current-user.decorator'
 import { RequestWithUser } from '@libs/types/identity/auth.type'
 import { SignBlindedVoteDto, SubmitBlindedVoteHashDto } from '@libs/types/coordinator/vote.dto'
-import { RevealVoteDto } from '@libs/types/coordinator/reveal.dto'
 
 @ApiTags('Coordinator')
 @Controller('coordinator')
@@ -224,34 +223,6 @@ export class AppController {
         return new ResponseDto({
             data: result,
             message: 'Blinded vote hash submitted successfully',
-            statusCode: HttpStatus.OK
-        })
-    }
-
-    //SECTION - Coordinator - Reveal
-    @Public()
-    @Post('reveal')
-    @HttpCode(HttpStatus.OK)
-    @ApiBody({
-        type: RevealVoteDto,
-        examples: {
-            example1: {
-                value: {
-                    electionId: '69f6a3eac5bfa7c9d91adccb',
-                    candidateId: '69f5b5475c48c621a0681cbc',
-                    h: '1234567890',
-                    sPrime: '1234567890'
-                }
-            }
-        }
-    })
-    @HttpCode(HttpStatus.OK)
-    async revealVote(@Body() dto: RevealVoteDto) {
-        const result = await this.appService.revealVote(dto)
-
-        return new ResponseDto({
-            data: result,
-            message: 'Vote revealed successfully',
             statusCode: HttpStatus.OK
         })
     }
