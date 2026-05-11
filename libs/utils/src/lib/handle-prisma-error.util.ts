@@ -8,6 +8,11 @@ type PrismaKnownRequestErrorLike = {
     }
 }
 
+type CustomMessage = {
+    code: 'P2025' | 'P2002' // Extendable for other Prisma error codes
+    message: string
+}
+
 const isPrismaKnownRequestError = (error: unknown): error is PrismaKnownRequestErrorLike => {
     if (!error || typeof error !== 'object') return false
 
@@ -15,8 +20,16 @@ const isPrismaKnownRequestError = (error: unknown): error is PrismaKnownRequestE
     return maybeError.name === 'PrismaClientKnownRequestError' && typeof maybeError.code === 'string'
 }
 
-export const handlePrismaError = (e: unknown): never => {
+export const handlePrismaError = (e: unknown, customMessages?: CustomMessage[]): never => {
     if (isPrismaKnownRequestError(e)) {
+        if (customMessages) {
+            const customMessage = customMessages.find((msg) => msg.code === e.code)
+            if (customMessage) {
+                if (e.code === 'P2025') throw new NotFoundException(customMessage.message)
+                if (e.code === 'P2002') throw new ConflictException(customMessage.message)
+            }
+        }
+
         const modelName = e.meta?.modelName ?? 'Unknown'
 
         if (e.code === 'P2025') throw new NotFoundException(`${modelName} - Record not found`)

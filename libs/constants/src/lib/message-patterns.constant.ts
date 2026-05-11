@@ -38,6 +38,8 @@ export const REVEAL_VOTE_MESSAGE_PATTERNS = {
 
 export const SIGNING_NODE_MESSAGE_PATTERNS = {
     CREATE_COMMITMENT: 'signing_node.create_commitment',
+    DELETE_SESSION_NONCE: 'signing_node.delete_session_nonce',
     SIGN_PARTIAL: 'signing_node.sign_partial',
-    GET_NODE_INFO: 'signing_node.get_node_info'
+    GET_NODE_INFO: 'signing_node.get_node_info',
+    CLEANUP_ELECTION: 'signing_node.cleanup_election'
 } as const

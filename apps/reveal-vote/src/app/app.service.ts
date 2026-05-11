@@ -16,6 +16,7 @@ import {
 import { CONFIGURATION } from '../configuration'
 import { ClientProxy } from '@nestjs/microservices'
 import { lastValueFrom } from 'rxjs'
+import { buildVoteMessage } from '@libs/utils/build-vote-message.util'
 
 @Injectable()
 export class AppService {
@@ -70,8 +71,12 @@ export class AppService {
         const sPrime = hexToScalar(dto.sPrime)
         const rho = hexToPoint(existElection!.collectivePublicKey, ecParams)
 
-        //SECTION - Kiểm tra signature,  Đây là điểm tin cậy duy nhất: chữ ký tập thể chỉ có thể được tạo qua phiên blind sign hợp lệ
-        const messageBuf = Buffer.from(dto.candidateId, 'utf-8')
+        //SECTION - Kiểm tra signature,  Đây là điểm tin cậy duy nhất: chữ ký tập thể chỉ có thể được tạo qua phiên blind sign hợp lệ.
+        // Bind electionId vào message để chống cross-election replay: chữ ký
+        // hợp lệ trong election A không verify được trong election B vì message
+        // khác nhau. Client phải dùng cùng buildVoteMessage(electionId, candidateId)
+        // ở pha blind.
+        const messageBuf = buildVoteMessage(dto.electionId, dto.candidateId)
         const isValidSignature = verify(messageBuf, h, sPrime, ecParams, rho)
 
         if (!isValidSignature) {

@@ -10,9 +10,10 @@ import { TimeoutInterceptor } from '@libs/interceptors/timeout.interceptor'
 import { TcpLoggerInterceptor } from '@libs/interceptors/tcp-logger.interceptor'
 import { HttpToRpcExceptionInterceptor } from '@libs/interceptors/http-to-rpc-exception.interceptor'
 import { CryptoModule } from '../infrastructure/crypto/crypto.module'
+import { PrismaModule } from '../infrastructure/prisma/prisma.module'
 
 @Module({
-    imports: [ConfigModule.forRoot({ load: [() => CONFIGURATION] }), CryptoModule],
+    imports: [ConfigModule.forRoot({ load: [() => CONFIGURATION] }), PrismaModule, CryptoModule],
     controllers: [AppController],
     providers: [
         AppService,

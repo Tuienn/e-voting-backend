@@ -79,6 +79,18 @@ export class AppService {
             throw new ConflictException('Voter already voted in this election')
         }
 
+        const existSession = await this.cacheManager.get<SessionSignedCache>(`session:signed:${dto.voterId}`)
+        if (existSession) {
+            //SECTION - Nếu session đã tồn tại, xóa session nonce trên signing node để tránh Nonce reuse (tấn công phục hồi private key) khi user start session lần 2
+            this.signingNodeClients.map((client) =>
+                client
+                    .emit(SIGNING_NODE_MESSAGE_PATTERNS.DELETE_SESSION_NONCE, {
+                        sessionId: existSession.sessionId
+                    })
+                    .subscribe()
+            )
+        }
+
         //SECTION - Tạo session ID và gửi commitment đến các signing node
         const sessionId = uuidv4()
         const ecParams = getParams()
@@ -136,13 +148,17 @@ export class AppService {
             throw new ConflictException('Session:sign signed already')
         }
 
-        //SECTION - Gửi rHex đến các signing node và nhận signature results
+        //SECTION - Gửi rHex đến các signing node và nhận signature results.
+        // Truyền (electionId, voterId) để signing-node persist dedup theo cặp
+        // này → chống voter tích lũy nhiều chữ ký bằng nhiều session khi cache hết hạn.
         const signatureResults = await Promise.all(
             this.signingNodeClients.map((client) =>
                 lastValueFrom(
                     client.send(SIGNING_NODE_MESSAGE_PATTERNS.SIGN_PARTIAL, {
                         sessionId: dto.sessionId,
-                        rHex: dto.rHex
+                        rHex: dto.rHex,
+                        electionId: existSession.electionId,
+                        voterId: dto.voterId
                     })
                 )
             )

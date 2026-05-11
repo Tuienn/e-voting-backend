@@ -101,7 +101,14 @@ export class AppService {
                 skip: page * pageSize,
                 take: pageSize
             }),
-            this.prisma.election.count()
+            this.prisma.election.count({
+                where: removeUndefinedObj({
+                    name: name ? { contains: name, mode: 'insensitive' } : undefined,
+                    status: status ? { equals: status as ElectionStatus } : undefined,
+                    startDate: startDate ? { gte: new Date(startDate) } : undefined,
+                    endDate: endDate ? { lte: new Date(endDate) } : undefined
+                })
+            })
         ])
 
         return {
@@ -245,8 +252,8 @@ export class AppService {
                     throw new UnprocessableEntityException('At least 2 candidates are required')
                 }
 
-                if (!election.electionVoters || election.electionVoters.length < 5) {
-                    throw new UnprocessableEntityException('At least 5 voters are required to start the election')
+                if (!election.electionVoters || election.electionVoters.length < 3) {
+                    throw new UnprocessableEntityException('At least 3 voters are required to start the election')
                 }
 
                 return await tx.election.update({
@@ -293,7 +300,7 @@ export class AppService {
                 const [updatedElection, voteCount] = await Promise.all([
                     tx.election.update({
                         where: { id: dto.id },
-                        data: { status: ElectionStatus.CLOSED, endDate: new Date() }
+                        data: { status: ElectionStatus.CLOSED }
                     }),
                     tx.vote.count({ where: { electionId: dto.id } })
                 ])
@@ -315,7 +322,7 @@ export class AppService {
 
     async completeElection(dto: MongoIdDto) {
         try {
-            return await this.prisma.$transaction(async (tx) => {
+            const election = await this.prisma.$transaction(async (tx) => {
                 const election = await tx.election.findUniqueOrThrow({
                     where: {
                         id: dto.id
@@ -335,10 +342,20 @@ export class AppService {
                         id: dto.id
                     },
                     data: {
-                        status: ElectionStatus.COMPLETED
+                        status: ElectionStatus.COMPLETED,
+                        endDate: new Date()
                     }
                 })
             })
+
+            //NOTE - Sau khi election hoàn tất, gửi message đến signing node để dọn dẹp session nonce liên quan đến election này
+            //  tránh tấn công phục hồi private key và dọn dẹp cache vote count
+            this.signingNodeClients.forEach((client) =>
+                client.emit(SIGNING_NODE_MESSAGE_PATTERNS.CLEANUP_ELECTION, { electionId: dto.id }).subscribe()
+            )
+            await this.cacheManager.del(`election:vote:count:${dto.id}`)
+
+            return election
         } catch (e) {
             handlePrismaError(e)
         }

@@ -56,11 +56,7 @@ export class CryptoService {
         return pointToHex(this.publicKey)
     }
 
-    getParams() {
-        return this.params
-    }
-
-    private async deleteSessionNonce(sessionId: string) {
+    async deleteSessionNonce(sessionId: string) {
         await this.cacheManager.del(`session:nonce:${CONFIGURATION.SERVICE_NAME}:${sessionId}`)
     }
 

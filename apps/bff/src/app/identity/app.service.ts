@@ -31,7 +31,7 @@ export class AppService {
     }
 
     async deleteUserById(dto: MongoIdDto) {
-        return this.identityClient.emit(IDENTITY_MESSAGE_PATTERNS.DELETE_USER_BY_ID, dto)
+        return this.identityClient.send(IDENTITY_MESSAGE_PATTERNS.DELETE_USER_BY_ID, dto)
     }
 
     async updateUserById(dto: MongoIdDto & UpdateUserByIdDto) {
@@ -60,6 +60,6 @@ export class AppService {
     }
 
     async signOut(dto: RefreshTokenDto) {
-        return this.identityClient.emit(IDENTITY_MESSAGE_PATTERNS.SIGN_OUT, dto)
+        return this.identityClient.send(IDENTITY_MESSAGE_PATTERNS.SIGN_OUT, dto)
     }
 }

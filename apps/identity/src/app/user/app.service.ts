@@ -165,7 +165,14 @@ export class AppService {
                 skip: page * pageSize,
                 take: pageSize
             }),
-            this.prisma.user.count()
+            this.prisma.user.count({
+                where: removeUndefinedObj({
+                    email: email ? { contains: email, mode: 'insensitive' } : undefined,
+                    name: name ? { contains: name, mode: 'insensitive' } : undefined,
+                    isActive: isActive,
+                    role: role ? { equals: role as Role } : undefined
+                })
+            })
         ])
 
         return {

@@ -1,0 +1,31 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+// Lưu vĩnh viễn việc node đã ký cho cặp (electionId, voterId).
+// Mỗi voter chỉ có thể được node này ký đúng 1 lần cho mỗi election.
+// chống tích lũy nhiều hữ ký để reveal nhiều phiếu.
+model SignedVoter {
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+
+  electionId String @db.ObjectId
+  voterId    String @db.ObjectId
+
+  sessionId String
+  signedAt  DateTime @default(now())
+
+  @@unique([electionId, voterId])
+  @@map("signed_voters")
+}
