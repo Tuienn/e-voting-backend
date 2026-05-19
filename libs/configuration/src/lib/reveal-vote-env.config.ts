@@ -34,6 +34,33 @@ export class RevealVoteEnvConfiguration {
     @IsNumber()
     COORDINATOR_TCP_PORT: number
 
+    @IsString()
+    IDENTITY_TCP_NAME: string
+
+    @IsString()
+    IDENTITY_TCP_HOST: string
+
+    @IsNumber()
+    IDENTITY_TCP_PORT: number
+
+    @IsString()
+    FABRIC_HOST: string
+
+    @IsString()
+    FABRIC_USERNAME: string
+
+    @IsString()
+    FABRIC_PASSWORD: string
+
+    @IsString()
+    FABRIC_CHAINCODE_ID: string
+
+    @IsString()
+    FABRIC_CHANNEL_NAME: string
+
+    @IsString()
+    FABRIC_ORG_ID: string
+
     constructor() {
         this.HTTP_PORT = Number(process.env['HTTP_PORT']) || 3007
         this.HTTP_GLOBAL_PREFIX = process.env['HTTP_GLOBAL_PREFIX'] || 'api/v1'
@@ -47,5 +74,16 @@ export class RevealVoteEnvConfiguration {
         this.COORDINATOR_TCP_NAME = process.env['COORDINATOR_TCP_NAME'] || 'COORDINATOR'
         this.COORDINATOR_TCP_HOST = process.env['COORDINATOR_TCP_HOST'] || 'localhost'
         this.COORDINATOR_TCP_PORT = Number(process.env['COORDINATOR_TCP_PORT']) || 3303
+
+        this.IDENTITY_TCP_NAME = process.env['IDENTITY_TCP_NAME'] || 'IDENTITY'
+        this.IDENTITY_TCP_HOST = process.env['IDENTITY_TCP_HOST'] || 'localhost'
+        this.IDENTITY_TCP_PORT = Number(process.env['IDENTITY_TCP_PORT']) || 3302
+
+        this.FABRIC_HOST = process.env['FABRIC_HOST'] || 'http://localhost:8100/api/v1'
+        this.FABRIC_USERNAME = process.env['FABRIC_USERNAME'] || 'fabric-client'
+        this.FABRIC_PASSWORD = process.env['FABRIC_PASSWORD'] || 'fabric-password'
+        this.FABRIC_CHAINCODE_ID = process.env['FABRIC_CHAINCODE_ID'] || '2'
+        this.FABRIC_CHANNEL_NAME = process.env['FABRIC_CHANNEL_NAME'] || 'votechannel'
+        this.FABRIC_ORG_ID = process.env['FABRIC_ORG_ID'] || '1'
     }
 }

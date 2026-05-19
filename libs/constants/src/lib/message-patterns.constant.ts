@@ -8,7 +8,7 @@ export const IDENTITY_MESSAGE_PATTERNS = {
     DELETE_USER_BY_ID: 'user.delete_user_by_id',
     UPDATE_USER_BY_ID: 'user.update_user_by_id',
     FILTER_USERS: 'user.filter_users',
-    GET_USERS_BY_IDS: 'user.GET_USERS_BY_IDS',
+    GET_USERS_BY_IDS: 'user.get_users_by_ids',
 
     SIGN_IN: 'auth.sign_in',
     REFRESH_TOKEN: 'auth.refresh_token',
@@ -28,7 +28,8 @@ export const COORDINATOR_MESSAGE_PATTERNS = {
     START_SESSION: 'vote.start_vote_session',
     SIGN_BLINDED_VOTE: 'vote.sign_blinded_vote',
     SUBMIT_BLINDED_COMMITMENT: 'vote.submit_blinded_commitment',
-    GET_VOTE_COUNT: 'vote.get_vote_count'
+    GET_VOTE_COUNT: 'vote.get_vote_count',
+    VERIFY_VOTE: 'vote.verify_vote'
 } as const
 
 export const REVEAL_VOTE_MESSAGE_PATTERNS = {

@@ -1,3 +1,4 @@
+import { FabricClientModule } from '@libs/fabric'
 import { TcpClientModule } from '@libs/modules/tcp-client.module'
 import { CustomValidationPipe } from '@libs/pipes/custom-validation.pipe'
 import { Module } from '@nestjs/common'
@@ -28,9 +29,22 @@ import { PrismaModule } from '../infrastructure/prisma/prisma.module'
                 serviceName: CONFIGURATION.REVEAL_VOTE_CONFIG.COORDINATOR_TCP_NAME,
                 host: CONFIGURATION.REVEAL_VOTE_CONFIG.COORDINATOR_TCP_HOST,
                 port: CONFIGURATION.REVEAL_VOTE_CONFIG.COORDINATOR_TCP_PORT
+            },
+            {
+                serviceName: CONFIGURATION.REVEAL_VOTE_CONFIG.IDENTITY_TCP_NAME,
+                host: CONFIGURATION.REVEAL_VOTE_CONFIG.IDENTITY_TCP_HOST,
+                port: CONFIGURATION.REVEAL_VOTE_CONFIG.IDENTITY_TCP_PORT
             }
         ]),
-        PrismaModule
+        PrismaModule,
+        FabricClientModule.register({
+            baseURL: CONFIGURATION.REVEAL_VOTE_CONFIG.FABRIC_HOST,
+            username: CONFIGURATION.REVEAL_VOTE_CONFIG.FABRIC_USERNAME,
+            password: CONFIGURATION.REVEAL_VOTE_CONFIG.FABRIC_PASSWORD,
+            chaincodeId: CONFIGURATION.REVEAL_VOTE_CONFIG.FABRIC_CHAINCODE_ID,
+            channelName: CONFIGURATION.REVEAL_VOTE_CONFIG.FABRIC_CHANNEL_NAME,
+            orgId: CONFIGURATION.REVEAL_VOTE_CONFIG.FABRIC_ORG_ID
+        })
     ],
     controllers: [AppController],
     providers: [

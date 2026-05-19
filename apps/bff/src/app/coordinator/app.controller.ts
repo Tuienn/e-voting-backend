@@ -8,7 +8,7 @@ import { ResponseDto } from '@libs/types/response.dto'
 import { MongoIdDto } from '@libs/types/common.dto'
 import { CurrentUser } from '@libs/decorators/current-user.decorator'
 import { RequestWithUser } from '@libs/types/identity/auth.type'
-import { SignBlindedVoteDto, SubmitBlindedCommitmentDto } from '@libs/types/coordinator/vote.dto'
+import { SignBlindedVoteDto, SubmitBlindedCommitmentDto, VerifyVoteDto } from '@libs/types/coordinator/vote.dto'
 
 @ApiTags('Coordinator')
 @Controller('coordinator')
@@ -226,6 +226,41 @@ export class AppController {
         return new ResponseDto({
             data: result,
             message: 'Blinded commitment submitted successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Public()
+    @Post('vote/:id/verify')
+    @HttpCode(HttpStatus.OK)
+    @ApiParam({
+        name: 'id',
+        type: String,
+        description: 'Vote ID',
+        examples: { example1: { value: '69f6a3eac5bfa7c9d91adccb' } }
+    })
+    @ApiBody({
+        type: VerifyVoteDto,
+        examples: {
+            example1: {
+                value: {
+                    electionId: '69f6a3eac5bfa7c9d91adccb',
+                    blindedCommitment: '1234567890',
+                    blockchainRef: '1234567890'
+                }
+            }
+        }
+    })
+    @HttpCode(HttpStatus.OK)
+    async verifyVote(@Param('id') voteId: string, @Body() dto: Omit<VerifyVoteDto, 'id'>) {
+        const result = await this.appService.verifyVote({
+            ...dto,
+            id: voteId
+        })
+
+        return new ResponseDto({
+            data: result,
+            message: 'Vote verified successfully',
             statusCode: HttpStatus.OK
         })
     }

@@ -1,3 +1,4 @@
+import { FabricClientModule } from '@libs/fabric'
 import { RedisCacheModule } from '@libs/modules/redis-cache.module'
 import { TcpClientModule } from '@libs/modules/tcp-client.module'
 import { CustomValidationPipe } from '@libs/pipes/custom-validation.pipe'
@@ -35,6 +36,14 @@ import { VoteModule } from './vote/app.module'
             password: CONFIGURATION.COORDINATOR_CONFIG.REDIS_PASSWORD
         }),
         PrismaModule,
+        FabricClientModule.register({
+            baseURL: CONFIGURATION.COORDINATOR_CONFIG.FABRIC_HOST,
+            username: CONFIGURATION.COORDINATOR_CONFIG.FABRIC_USERNAME,
+            password: CONFIGURATION.COORDINATOR_CONFIG.FABRIC_PASSWORD,
+            chaincodeId: CONFIGURATION.COORDINATOR_CONFIG.FABRIC_CHAINCODE_ID,
+            channelName: CONFIGURATION.COORDINATOR_CONFIG.FABRIC_CHANNEL_NAME,
+            orgId: CONFIGURATION.COORDINATOR_CONFIG.FABRIC_ORG_ID
+        }),
         ElectionModule,
         VoteModule
     ],

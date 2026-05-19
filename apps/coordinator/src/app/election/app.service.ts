@@ -13,6 +13,7 @@ import {
     BadRequestException,
     ConflictException,
     ForbiddenException,
+    forwardRef,
     Inject,
     Injectable,
     NotFoundException,
@@ -26,6 +27,9 @@ import { lastValueFrom } from 'rxjs'
 import { IDENTITY_MESSAGE_PATTERNS, SIGNING_NODE_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
 import { ModuleRef } from '@nestjs/core'
 import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager'
+import { FabricClientService } from '@libs/fabric'
+import { AppService as VoteService } from '../vote/app.service'
+import { buildCommitmentMerkleTree } from '@libs/fabric'
 
 @Injectable()
 export class AppService {
@@ -36,7 +40,9 @@ export class AppService {
         @Inject(`TCP_${CONFIGURATION.COORDINATOR_CONFIG.IDENTITY_TCP_NAME}`)
         private readonly identityClient: ClientProxy,
         private readonly prisma: PrismaService,
-        @Inject(CACHE_MANAGER) private readonly cacheManager: Cache
+        @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
+        private readonly fabricClient: FabricClientService,
+        @Inject(forwardRef(() => VoteService)) private readonly voteService: VoteService
     ) {
         this.signingNodeClients = CONFIGURATION.COORDINATOR_CONFIG.SIGNING_NODES_TCP_NAME.map((serviceName) =>
             this.moduleRef.get<ClientProxy>(`TCP_${serviceName}`, { strict: false })
@@ -263,33 +269,49 @@ export class AppService {
 
     async closeElection(dto: MongoIdDto) {
         try {
+            //SECTION - Pre-validate — không cần transaction
+            const election = await this.prisma.election.findUniqueOrThrow({ where: { id: dto.id } })
+
+            if (!election.startDate) {
+                throw new ConflictException('Election not started')
+            }
+            if (election.endDate) {
+                throw new ConflictException('Election already closed')
+            }
+            if (election.status !== ElectionStatus.ACTIVE) {
+                throw new ConflictException('Only ACTIVE election can be closed')
+            }
+
+            //SECTION - Build merkle tree — ngoài transaction, tránh giữ lock
+            const commitmentVotes = await this.voteService.getCommitmentVotesByElectionId({ id: dto.id })
+            const leaves = commitmentVotes.map((cv) => cv.blindedCommitment)
+            const { root } = buildCommitmentMerkleTree(leaves)
+
+            //SECTION - Commit merkle lên blockchain — ngoài transaction (~2s)
+            //NOTE - Trade-off cần lưu ý: Nếu có concurrent call closeElection trong window 2s đó, cả hai đều gọi fabric ->check trong chaincode->reject
+            const fabricRes = await this.fabricClient.commitMerkleRoot(dto.id, root, leaves.length)
+
+            //SECTION - Commit — transaction ngắn, chỉ re-validate + write
             const updatedElection = await this.prisma.$transaction(async (tx) => {
-                const election = await tx.election.findUniqueOrThrow({
-                    where: {
-                        id: dto.id
-                    }
-                })
-
-                if (!election.startDate) {
-                    throw new ConflictException('Election not started')
-                }
-
-                if (election.endDate) {
-                    throw new ConflictException('Election already closed')
-                }
-
-                if (election.status !== ElectionStatus.ACTIVE) {
+                // Re-validate chống race condition (ai đó closeElection đồng thời)
+                const current = await tx.election.findUniqueOrThrow({ where: { id: dto.id } })
+                if (current.status !== ElectionStatus.ACTIVE) {
                     throw new ConflictException('Only ACTIVE election can be closed')
                 }
 
                 return await tx.election.update({
                     where: { id: dto.id },
-                    data: { status: ElectionStatus.CLOSED }
+                    data: {
+                        status: ElectionStatus.CLOSED,
+                        merkleRoot: root,
+                        blockchainRef: fabricRes.result.transactionId
+                    }
                 })
             })
+
             //NOTE - vote.count sau transaction — an toàn vì election đã CLOSED, không nhận vote mới
             // submitBlindedCommitment gọi checkActiveElectionById trước khi insert vote — một vote mới không thể lọt vào election đã CLOSED
-            const voteCount = await this.prisma.vote.count({ where: { electionId: dto.id } })
+            const voteCount = await this.voteService.getVoteCount({ id: dto.id })
 
             await this.cacheManager.set(
                 `election:vote:count:${dto.id}`,
@@ -346,7 +368,7 @@ export class AppService {
 
     async getElectionById(dto: MongoIdDto) {
         try {
-            return await this.prisma.election.findUniqueOrThrow({
+            return await this.prisma.election.findUnique({
                 where: {
                     id: dto.id
                 }
@@ -358,7 +380,10 @@ export class AppService {
 
     async getVoterInElection(dto: GetVoterInElectionDto) {
         //SECTION - Kiểm tra election có tồn tại không
-        await this.getElectionById({ id: dto.electionId })
+        const election = await this.getElectionById({ id: dto.electionId })
+        if (!election) {
+            throw new NotFoundException('Election not found')
+        }
 
         //SECTION - Kiểm tra election voter có tồn tại không
         const electionVoter = await this.prisma.electionVoter.findUnique({
@@ -396,8 +421,11 @@ export class AppService {
     async checkActiveElectionById(dto: MongoIdDto) {
         const election = await this.getElectionById(dto)
 
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        if (election!.status !== ElectionStatus.ACTIVE) {
+        if (!election) {
+            throw new NotFoundException('Election not found')
+        }
+
+        if (election.status !== ElectionStatus.ACTIVE) {
             throw new ConflictException('Election is not active')
         }
     }

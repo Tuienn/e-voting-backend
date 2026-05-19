@@ -43,6 +43,24 @@ export class CoordinatorEnvConfiguration {
     @IsString()
     REDIS_PASSWORD: string
 
+    @IsString()
+    FABRIC_HOST: string
+
+    @IsString()
+    FABRIC_USERNAME: string
+
+    @IsString()
+    FABRIC_PASSWORD: string
+
+    @IsString()
+    FABRIC_CHAINCODE_ID: string
+
+    @IsString()
+    FABRIC_CHANNEL_NAME: string
+
+    @IsString()
+    FABRIC_ORG_ID: string
+
     constructor() {
         this.TCP_HOST = process.env['TCP_HOST'] || 'localhost'
         this.TCP_PORT = Number(process.env['TCP_PORT']) || 3303
@@ -71,5 +89,12 @@ export class CoordinatorEnvConfiguration {
         this.REDIS_PORT = Number(process.env['REDIS_PORT']) || 6379
         this.REDIS_PASSWORD = process.env['REDIS_PASSWORD'] || 'secret'
         this.REDIS_SESSION_CACHE_TTL = Number(process.env['REDIS_SESSION_CACHE_TTL']) || 120000
+
+        this.FABRIC_HOST = process.env['FABRIC_HOST'] || 'http://localhost:8100/api/v1'
+        this.FABRIC_USERNAME = process.env['FABRIC_USERNAME'] || 'fabric-client'
+        this.FABRIC_PASSWORD = process.env['FABRIC_PASSWORD'] || 'fabric-password'
+        this.FABRIC_CHAINCODE_ID = process.env['FABRIC_CHAINCODE_ID'] || '2'
+        this.FABRIC_CHANNEL_NAME = process.env['FABRIC_CHANNEL_NAME'] || 'votechannel'
+        this.FABRIC_ORG_ID = process.env['FABRIC_ORG_ID'] || '1'
     }
 }

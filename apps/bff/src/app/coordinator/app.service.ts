@@ -1,11 +1,16 @@
 import { CreateElectionDto, FilterElectionsDto, VoterIdsDto } from '@libs/types/coordinator/election.dto'
-import { Inject, Injectable } from '@nestjs/common'
+import { Inject, Injectable, NotFoundException } from '@nestjs/common'
 import { CONFIGURATION } from '../../configuration'
 import { ClientProxy } from '@nestjs/microservices'
 import { COORDINATOR_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
 import { lastValueFrom } from 'rxjs'
 import { MongoIdDto } from '@libs/types/common.dto'
-import { SignBlindedVoteDto, StartSessionDto, SubmitBlindedCommitmentDto } from '@libs/types/coordinator/vote.dto'
+import {
+    SignBlindedVoteDto,
+    StartSessionDto,
+    SubmitBlindedCommitmentDto,
+    VerifyVoteDto
+} from '@libs/types/coordinator/vote.dto'
 
 @Injectable()
 export class AppService {
@@ -35,7 +40,15 @@ export class AppService {
     }
 
     async getElectionById(dto: MongoIdDto) {
-        return lastValueFrom(this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTION_BY_ID, dto))
+        const election = await lastValueFrom(
+            this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTION_BY_ID, dto)
+        )
+
+        if (!election) {
+            throw new NotFoundException('Election not found')
+        }
+
+        return election
     }
 
     //SECTION - Coordinator - Vote
@@ -49,5 +62,9 @@ export class AppService {
 
     async submitBlindedCommitment(dto: SubmitBlindedCommitmentDto) {
         return lastValueFrom(this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.SUBMIT_BLINDED_COMMITMENT, dto))
+    }
+
+    async verifyVote(dto: VerifyVoteDto) {
+        return lastValueFrom(this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.VERIFY_VOTE, dto))
     }
 }

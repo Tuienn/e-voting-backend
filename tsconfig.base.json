@@ -28,7 +28,8 @@
             "@libs/modules/*": ["libs/modules/src/lib/*"],
             "@libs/pipes/*": ["libs/pipes/src/lib/*"],
             "@libs/filters/*": ["libs/filters/src/lib/*"],
-            "@libs/ec-schnorr": ["libs/ec-schnorr/src/index.ts"]
+            "@libs/ec-schnorr": ["libs/ec-schnorr/src/index.ts"],
+            "@libs/fabric": ["libs/fabric/src/index.ts"]
         }
     },
     "exclude": ["node_modules", "tmp"]

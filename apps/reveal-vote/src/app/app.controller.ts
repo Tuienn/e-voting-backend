@@ -1,5 +1,5 @@
 import { MongoIdDto } from '@libs/types/common.dto'
-import { BadRequestException, Body, Controller, HttpCode, HttpStatus, Param, Post } from '@nestjs/common'
+import { BadRequestException, Body, Controller, Get, HttpCode, HttpStatus, Param, Post } from '@nestjs/common'
 import { AppService } from './app.service'
 import { Public } from '@libs/decorators/public.decorator'
 import { ApiBody, ApiParam } from '@nestjs/swagger'
@@ -53,6 +53,42 @@ export class AppController {
         return new ResponseDto({
             data: result,
             message: 'Vote revealed successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Public()
+    @Get('/:id/audit')
+    @ApiParam({
+        name: 'id',
+        type: String,
+        description: 'Election ID',
+        example: '69f6a3eac5bfa7c9d91adccb'
+    })
+    async getAuditVote(@Param() params: MongoIdDto) {
+        const result = await this.appService.getAuditVote(params)
+
+        return new ResponseDto({
+            data: result,
+            message: 'Audit vote retrieved successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Public()
+    @Get('/:id/tally')
+    @ApiParam({
+        name: 'id',
+        type: String,
+        description: 'Election ID',
+        example: '69f6a3eac5bfa7c9d91adccb'
+    })
+    async getTallyResult(@Param() params: MongoIdDto) {
+        const result = await this.appService.getTallyResult(params)
+
+        return new ResponseDto({
+            data: result,
+            message: 'Tally result retrieved successfully',
             statusCode: HttpStatus.OK
         })
     }
