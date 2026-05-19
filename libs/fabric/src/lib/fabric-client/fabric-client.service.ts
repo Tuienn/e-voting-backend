@@ -41,11 +41,11 @@ export class FabricClientService implements OnModuleInit {
     }
 
     //NOTE - Các hàm dưới đây sẽ gọi API của chaincode, xem type response.data ở chainlaunch/chaincode/types.go
-    async submitVote(electionId: string, voterId: string, blindedCommitment: string): Promise<InvokeChaincodeResponse> {
+    async submitVote(electionId: string, voteId: string, blindedCommitment: string): Promise<InvokeChaincodeResponse> {
         try {
             const response = await this.client.post(
                 `/sc/fabric/chaincodes/${this.options.chaincodeId}/invoke`,
-                this.genApiChaincodeBody('SubmitVote', [electionId, voterId, blindedCommitment])
+                this.genApiChaincodeBody('SubmitVote', [electionId, voteId, blindedCommitment])
             )
 
             return response.data

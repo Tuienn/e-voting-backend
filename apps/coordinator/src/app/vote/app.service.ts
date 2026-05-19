@@ -19,6 +19,7 @@ import { ModuleRef } from '@nestjs/core'
 import { PrismaService } from '../../infrastructure/prisma/prisma.service'
 import { AppService as ElectionService } from '../election/app.service'
 import { v4 as uuidv4 } from 'uuid'
+import { ObjectId } from 'bson'
 import { SIGNING_NODE_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
 import { lastValueFrom } from 'rxjs'
 import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager'
@@ -254,16 +255,21 @@ export class AppService {
         await this.electionService.checkActiveElectionById({ id: dto.electionId })
 
         try {
+            //SECTION - Pre-generate voteId để dùng làm key nhất quán trên cả chain và DB
+            // voterId không dùng làm key on-chain để tránh link voter identity với vote record
+            const voteId = new ObjectId().toHexString()
+
             //SECTION - Gửi blinded commitment đến Fabric để submit vote lên blockchain
             const fabricRes = await this.fabricClientService.submitVote(
                 dto.electionId,
-                dto.voterId,
+                voteId,
                 dto.blindedCommitment.toLowerCase()
             )
 
             //SECTION - Lưu vote vào database, dùng transactionId từ Fabric làm reference để audit sau này
             const vote = await this.prisma.vote.create({
                 data: {
+                    id: voteId,
                     electionId: dto.electionId,
                     voterId: dto.voterId,
                     blindedCommitment: dto.blindedCommitment,
@@ -378,7 +384,6 @@ export class AppService {
             result.chain.txIdMatch = chainVote.txId === dto.blockchainRef
             result.chain.commitmentMatch = chainVote.blindedCommitment === normalizedBlindedCommitment
         } else {
-            result.chain.exist = false
             result.chain.error = chainVoteRes.message
         }
 
@@ -419,12 +424,13 @@ export class AppService {
                     normalizedBlindedCommitment,
                     proof.proof
                 )
+                console.log('chainVerifyProofRes', chainVerifyProofRes)
 
                 const chainVerifyProof = chainVerifyProofRes.result ? JSON.parse(chainVerifyProofRes.result) : null
 
                 if (chainVerifyProofRes.result) {
                     //NOTE -  blindedCommitment + proof tạo ra đúng Merkle root đã commit on-chain cho election đó.
-                    result.merkle.chainProofValid = Boolean(chainVerifyProof.valid)
+                    result.merkle.chainProofValid = Boolean(chainVerifyProof.inElection)
                 } else {
                     result.merkle.verifyProofChainError = chainVerifyProofRes.message
                 }

@@ -31,6 +31,7 @@
         "argon2": "^0.44.0",
         "axios": "^1.6.0",
         "axios-cookiejar-support": "^7.0.0",
+        "bson": "^7.2.0",
         "cache-manager": "^7.2.8",
         "cacheable": "^2.3.4",
         "class-transformer": "^0.5.1",

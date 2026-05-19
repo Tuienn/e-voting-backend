@@ -1,6 +1,5 @@
 import { sha256 } from '@libs/ec-schnorr'
-import * as crypto from 'crypto'
-
+import { createHash } from 'crypto'
 const VOTE_DOMAIN = 'ev-vote-v1'
 const REVEAL_DOMAIN = 'reveal-v1'
 
@@ -36,8 +35,7 @@ export function computeRevealPayloadHash(candidateId: string, hHex: string, sPri
     const candidateBuf = Buffer.from(candidateId, 'utf8')
     const lenBuf = Buffer.alloc(4)
     lenBuf.writeUInt32BE(candidateBuf.length, 0)
-    return crypto
-        .createHash('sha256')
+    return createHash('sha256')
         .update(Buffer.from(REVEAL_DOMAIN, 'utf8'))
         .update(lenBuf)
         .update(candidateBuf)

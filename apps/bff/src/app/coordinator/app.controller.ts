@@ -225,7 +225,7 @@ export class AppController {
 
         return new ResponseDto({
             data: result,
-            message: 'Blinded commitment submitted successfully',
+            message: 'Blinded commitment submitted, vote created successfully',
             statusCode: HttpStatus.OK
         })
     }
