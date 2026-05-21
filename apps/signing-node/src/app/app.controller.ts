@@ -2,9 +2,10 @@ import { SIGNING_NODE_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.
 import { BadRequestException, Controller } from '@nestjs/common'
 import { AppService } from './app.service'
 import { EventPattern, MessagePattern, Payload } from '@nestjs/microservices'
-import { ElectionIdDto, SessionIdDto, SignPartialDto } from '@libs/types/signing-node/app.dto'
+import { SessionIdDto, SignPartialDto } from '@libs/types/signing-node/app.dto'
 import { getParams, isReasonableHexLength, isValidScalarHex } from '@libs/ec-schnorr'
 import { invalidDataField } from '@libs/constants/text.constant'
+import { ElectionIdDto } from '@libs/types/common.dto'
 
 @Controller()
 export class AppController {

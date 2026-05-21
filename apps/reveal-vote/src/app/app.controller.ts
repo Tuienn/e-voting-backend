@@ -3,7 +3,7 @@ import { BadRequestException, Body, Controller, Get, HttpCode, HttpStatus, Param
 import { AppService } from './app.service'
 import { Public } from '@libs/decorators/public.decorator'
 import { ApiBody, ApiParam } from '@nestjs/swagger'
-import { RevealVoteDto } from '@libs/types/reveal-vote/app.dto'
+import { RevealVoteBodyDto, RevealVoteDto } from '@libs/types/reveal-vote/app.dto'
 import { ResponseDto } from '@libs/types/response.dto'
 import { getParams, isValidScalarHex } from '@libs/ec-schnorr'
 import { invalidDataField } from '@libs/constants/text.constant'
@@ -35,7 +35,7 @@ export class AppController {
         }
     })
     @HttpCode(HttpStatus.OK)
-    async revealVote(@Body() dto: Omit<RevealVoteDto, 'electionId'>, @Param() params: MongoIdDto) {
+    async revealVote(@Body() dto: RevealVoteBodyDto, @Param() params: MongoIdDto) {
         const ecParams = getParams()
 
         if (!isValidScalarHex(dto.h, ecParams.n) || !isValidScalarHex(dto.sPrime, ecParams.n)) {

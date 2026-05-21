@@ -9,6 +9,7 @@ export const IDENTITY_MESSAGE_PATTERNS = {
     UPDATE_USER_BY_ID: 'user.update_user_by_id',
     FILTER_USERS: 'user.filter_users',
     GET_USERS_BY_IDS: 'user.get_users_by_ids',
+    GET_USER_BY_EMAIL: 'user.get_user_by_email',
 
     SIGN_IN: 'auth.sign_in',
     REFRESH_TOKEN: 'auth.refresh_token',
@@ -35,6 +36,7 @@ export const COORDINATOR_MESSAGE_PATTERNS = {
     SIGN_BLINDED_VOTE: 'vote.sign_blinded_vote',
     SUBMIT_BLINDED_COMMITMENT: 'vote.submit_blinded_commitment',
     GET_VOTE_COUNT: 'vote.get_vote_count',
+    FILTER_VOTES: 'vote.filter_votes',
     VERIFY_VOTE: 'vote.verify_vote'
 } as const
 

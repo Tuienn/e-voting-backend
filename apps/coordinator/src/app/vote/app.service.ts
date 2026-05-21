@@ -1,4 +1,5 @@
 import {
+    FilterVotesDto,
     SignBlindedVoteDto,
     StartSessionDto,
     SubmitBlindedCommitmentDto,
@@ -20,7 +21,7 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service'
 import { AppService as ElectionService } from '../election/app.service'
 import { v4 as uuidv4 } from 'uuid'
 import { ObjectId } from 'bson'
-import { SIGNING_NODE_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
+import { IDENTITY_MESSAGE_PATTERNS, SIGNING_NODE_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
 import { lastValueFrom } from 'rxjs'
 import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager'
 import { handlePrismaError } from '@libs/utils/handle-prisma-error.util'
@@ -39,6 +40,9 @@ import {
 } from '@libs/ec-schnorr'
 import { ElectionStatus } from '../../../generated/prisma/enums'
 import { computeCommitmentProof, FabricClientService, verifyCommitmentProof } from '@libs/fabric'
+import { removeUndefinedObj } from '@libs/utils/object.util'
+import { PaginationMeta } from '@libs/types/common.type'
+import { Vote } from '../../../generated/prisma/client'
 
 type SessionSignedCache = {
     sessionId: string
@@ -55,6 +59,8 @@ export class AppService {
     constructor(
         private readonly moduleRef: ModuleRef,
         private readonly prisma: PrismaService,
+        @Inject(`TCP_${CONFIGURATION.COORDINATOR_CONFIG.IDENTITY_TCP_NAME}`)
+        private readonly identityClient: ClientProxy,
         @Inject(forwardRef(() => ElectionService)) private readonly electionService: ElectionService,
         @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
         private readonly fabricClientService: FabricClientService
@@ -69,6 +75,97 @@ export class AppService {
         if (cached !== null && cached !== undefined) return cached
 
         return await this.prisma.vote.count({ where: { electionId: dto.id } })
+    }
+
+    async filterVotes(dto: FilterVotesDto): Promise<
+        {
+            data: (Pick<Vote, 'id' | 'electionId' | 'voterId' | 'blindedCommitment' | 'blockchainRef' | 'createdAt'> & {
+                voter: { id: string; email: string; name: string } | null
+            })[]
+        } & PaginationMeta
+    > {
+        const { electionId, voterId, startDate, endDate, page = 0, pageSize = 10 } = dto ?? {}
+        const voteSelect = {
+            id: true,
+            electionId: true,
+            voterId: true,
+            blindedCommitment: true,
+            blockchainRef: true,
+            createdAt: true
+        }
+        const fromDate = startDate ? new Date(startDate) : undefined
+        const toDate = endDate ? new Date(endDate) : undefined
+        let votes: Pick<Vote, 'id' | 'electionId' | 'voterId' | 'blindedCommitment' | 'blockchainRef' | 'createdAt'>[]
+        let total: number
+
+        if (voterId) {
+            // Dùng đúng compound unique @@unique([electionId, voterId]); mỗi voter tối đa 1 vote trong 1 election.
+            const vote = await this.prisma.vote.findUnique({
+                where: {
+                    electionId_voterId: {
+                        electionId,
+                        voterId
+                    }
+                },
+                select: voteSelect
+            })
+
+            const filteredVotes =
+                vote && (!fromDate || vote.createdAt >= fromDate) && (!toDate || vote.createdAt <= toDate) ? [vote] : []
+
+            total = filteredVotes.length
+            votes = filteredVotes.slice(page * pageSize, page * pageSize + pageSize)
+        } else {
+            const where = removeUndefinedObj({
+                electionId,
+                createdAt:
+                    fromDate || toDate
+                        ? removeUndefinedObj({
+                              gte: fromDate,
+                              lte: toDate
+                          })
+                        : undefined
+            })
+
+            const [data, count] = await this.prisma.$transaction([
+                this.prisma.vote.findMany({
+                    where,
+                    orderBy: { createdAt: 'desc' },
+                    select: voteSelect,
+                    skip: page * pageSize,
+                    take: pageSize
+                }),
+                this.prisma.vote.count({ where })
+            ])
+
+            votes = data
+            total = count
+        }
+
+        const voterIds = [...new Set(votes.map((vote) => vote.voterId))]
+        const voters =
+            voterIds.length > 0
+                ? await lastValueFrom(
+                      this.identityClient.send(IDENTITY_MESSAGE_PATTERNS.GET_USERS_BY_IDS, {
+                          ids: voterIds,
+                          role: 'VOTER'
+                      })
+                  )
+                : []
+        const voterMap = new Map(
+            (voters as { id: string; email: string; name: string }[]).map((voter) => [voter.id, voter])
+        )
+
+        return {
+            data: votes.map((vote) => ({
+                ...vote,
+                voter: voterMap.get(vote.voterId) ?? null
+            })),
+            totalPages: Math.ceil(total / pageSize),
+            currentPage: page,
+            pageSize,
+            total
+        }
     }
 
     async startSession(dto: StartSessionDto) {

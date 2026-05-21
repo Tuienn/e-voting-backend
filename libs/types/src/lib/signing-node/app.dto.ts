@@ -7,12 +7,6 @@ export class SessionIdDto {
     sessionId: string
 }
 
-export class ElectionIdDto {
-    @IsDefined({ message: missingDataField('electionId') })
-    @IsMongoId({ message: invalidDataField('electionId', 'MongoDB ObjectId') })
-    electionId: string
-}
-
 export class SignPartialDto extends SessionIdDto {
     @IsDefined({ message: missingDataField('rHex') })
     @IsHexadecimal({ message: invalidDataField('rHex', 'hexadecimal') })

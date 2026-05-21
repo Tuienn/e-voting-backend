@@ -1,7 +1,13 @@
 import { Controller } from '@nestjs/common'
 import { AppService } from './app.service'
 import { MessagePattern, Payload } from '@nestjs/microservices'
-import { CreateBulkUsersDto, CreateUserDto, FilterUsersDto, RoleDto } from '@libs/types/identity/user.dto'
+import {
+    CreateBulkUsersDto,
+    CreateUserDto,
+    FilterUsersDto,
+    GetUserByEmailDto,
+    RoleDto
+} from '@libs/types/identity/user.dto'
 import { IDENTITY_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
 import { MongoIdDto, MongoIdsDto } from '@libs/types/common.dto'
 @Controller()
@@ -16,6 +22,11 @@ export class AppController {
     @MessagePattern(IDENTITY_MESSAGE_PATTERNS.GET_USER_BY_ID)
     async getUserById(@Payload() dto: MongoIdDto) {
         return await this.appService.getUserById(dto)
+    }
+
+    @MessagePattern(IDENTITY_MESSAGE_PATTERNS.GET_USER_BY_EMAIL)
+    async getUserByEmail(@Payload() dto: GetUserByEmailDto) {
+        return await this.appService.getUserByEmail(dto)
     }
 
     @MessagePattern(IDENTITY_MESSAGE_PATTERNS.DISABLE_USER_BY_ID)

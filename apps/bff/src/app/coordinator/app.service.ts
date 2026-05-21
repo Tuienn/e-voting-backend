@@ -1,3 +1,4 @@
+import { removeUndefinedObj } from '@libs/utils/object.util'
 import {
     CandidateIdsDto,
     CreateElectionDto,
@@ -7,10 +8,11 @@ import {
 import { Inject, Injectable, NotFoundException } from '@nestjs/common'
 import { CONFIGURATION } from '../../configuration'
 import { ClientProxy } from '@nestjs/microservices'
-import { COORDINATOR_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
+import { COORDINATOR_MESSAGE_PATTERNS, IDENTITY_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
 import { lastValueFrom } from 'rxjs'
 import { MongoIdDto } from '@libs/types/common.dto'
 import {
+    BffFilterVotesDto,
     SignBlindedVoteDto,
     StartSessionDto,
     SubmitBlindedCommitmentDto,
@@ -20,7 +22,9 @@ import {
 @Injectable()
 export class AppService {
     constructor(
-        @Inject(`TCP_${CONFIGURATION.BFF_CONFIG.COORDINATOR_TCP_NAME}`) private readonly coordinatorClient: ClientProxy
+        @Inject(`TCP_${CONFIGURATION.BFF_CONFIG.COORDINATOR_TCP_NAME}`) private readonly coordinatorClient: ClientProxy,
+
+        @Inject(`TCP_${CONFIGURATION.BFF_CONFIG.IDENTITY_TCP_NAME}`) private readonly identityClient: ClientProxy
     ) {}
 
     //SECTION - Coordinator - Election
@@ -99,5 +103,30 @@ export class AppService {
 
     async verifyVote(dto: VerifyVoteDto) {
         return lastValueFrom(this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.VERIFY_VOTE, dto))
+    }
+
+    async filterVotes(dto: BffFilterVotesDto) {
+        let voterId = undefined
+        if (dto.voterEmail) {
+            const voter = await lastValueFrom(
+                this.identityClient.send(IDENTITY_MESSAGE_PATTERNS.GET_USER_BY_EMAIL, { email: dto.voterEmail })
+            )
+
+            voterId = voter?.id
+        }
+
+        return lastValueFrom(
+            this.coordinatorClient.send(
+                COORDINATOR_MESSAGE_PATTERNS.FILTER_VOTES,
+                removeUndefinedObj({
+                    voterId,
+                    startDate: dto.startDate,
+                    endDate: dto.endDate,
+                    page: dto.page,
+                    pageSize: dto.pageSize,
+                    electionId: dto.electionId
+                })
+            )
+        )
     }
 }

@@ -10,10 +10,18 @@ import {
 import { Public } from '@libs/decorators/public.decorator'
 import { Roles } from '@libs/decorators/roles.decorator'
 import { ResponseDto } from '@libs/types/response.dto'
-import { MongoIdDto } from '@libs/types/common.dto'
+import { ElectionIdDto, MongoIdDto } from '@libs/types/common.dto'
 import { CurrentUser } from '@libs/decorators/current-user.decorator'
 import { RequestWithUser } from '@libs/types/identity/auth.type'
-import { SignBlindedVoteDto, SubmitBlindedCommitmentDto, VerifyVoteDto } from '@libs/types/coordinator/vote.dto'
+import {
+    FilterVotesQueryDto,
+    SignBlindedVoteBodyDto,
+    SignBlindedVoteDto,
+    SubmitBlindedCommitmentBodyDto,
+    SubmitBlindedCommitmentDto,
+    VerifyVoteBodyDto,
+    VerifyVoteDto
+} from '@libs/types/coordinator/vote.dto'
 
 @ApiTags('Coordinator')
 @Controller('coordinator')
@@ -283,6 +291,32 @@ export class AppController {
     }
 
     @Roles('ADMIN')
+    @Get('election/:id/votes/filter')
+    @ApiParam({
+        name: 'id',
+        type: String,
+        description: 'Election ID',
+        examples: { example1: { value: '69f5b5475c48c621a0681cbc' } }
+    })
+    @ApiQuery({ name: 'voterEmail', required: false, type: String })
+    @ApiQuery({ name: 'startDate', required: false, type: String, format: 'date-time' })
+    @ApiQuery({ name: 'endDate', required: false, type: String, format: 'date-time' })
+    @ApiQuery({ name: 'page', required: false, type: Number })
+    @ApiQuery({ name: 'pageSize', required: false, type: Number })
+    async filterVotes(@Param() electionIdDto: MongoIdDto, @Query() dto: FilterVotesQueryDto) {
+        const result = await this.appService.filterVotes({
+            ...dto,
+            electionId: electionIdDto.id
+        })
+
+        return new ResponseDto({
+            data: result,
+            message: 'Votes retrieved successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Roles('ADMIN')
     @Get('election/:id')
     @ApiParam({
         name: 'id',
@@ -337,7 +371,7 @@ export class AppController {
         }
     })
     @HttpCode(HttpStatus.OK)
-    async signBlindedVote(@Body() dto: Omit<SignBlindedVoteDto, 'voterId'>, @CurrentUser() user: RequestWithUser) {
+    async signBlindedVote(@Body() dto: SignBlindedVoteBodyDto, @CurrentUser() user: RequestWithUser) {
         const result = await this.appService.signBlindedVote({
             ...dto,
             voterId: user.userId
@@ -372,8 +406,8 @@ export class AppController {
     })
     @HttpCode(HttpStatus.OK)
     async submitBlindedCommitment(
-        @Param() params: Pick<SubmitBlindedCommitmentDto, 'electionId'>,
-        @Body() dto: Omit<SubmitBlindedCommitmentDto, 'electionId' | 'voterId'>,
+        @Param() params: ElectionIdDto,
+        @Body() dto: SubmitBlindedCommitmentBodyDto,
         @CurrentUser() user: RequestWithUser
     ) {
         const result = await this.appService.submitBlindedCommitment({
@@ -411,7 +445,7 @@ export class AppController {
         }
     })
     @HttpCode(HttpStatus.OK)
-    async verifyVote(@Param('id') voteId: string, @Body() dto: Omit<VerifyVoteDto, 'id'>) {
+    async verifyVote(@Param('id') voteId: string, @Body() dto: VerifyVoteBodyDto) {
         const result = await this.appService.verifyVote({
             ...dto,
             id: voteId

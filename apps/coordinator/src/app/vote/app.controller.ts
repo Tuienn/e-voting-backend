@@ -1,6 +1,7 @@
 import { BadRequestException, Controller } from '@nestjs/common'
 import { AppService } from './app.service'
 import {
+    FilterVotesDto,
     SignBlindedVoteDto,
     StartSessionDto,
     SubmitBlindedCommitmentDto,
@@ -19,6 +20,11 @@ export class AppController {
     @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.GET_VOTE_COUNT)
     async getVoteCount(@Payload() dto: MongoIdDto) {
         return await this.appService.getVoteCount(dto)
+    }
+
+    @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.FILTER_VOTES)
+    async filterVotes(@Payload() dto: FilterVotesDto) {
+        return await this.appService.filterVotes(dto)
     }
 
     @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.START_SESSION)

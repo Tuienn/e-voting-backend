@@ -1,7 +1,8 @@
 import { GetVoterInElectionDto } from './election.dto'
-import { IsDefined, IsHexadecimal, IsMongoId, IsUUID, Length } from 'class-validator'
+import { IsDateString, IsDefined, IsEmail, IsHexadecimal, IsMongoId, IsOptional, IsUUID, Length } from 'class-validator'
 import { invalidDataField, missingDataField } from '@libs/constants/text.constant'
-import { MongoIdDto } from '../common.dto'
+import { MongoIdDto, PaginationQueryDto } from '../common.dto'
+import { OmitType } from '@nestjs/swagger'
 
 export class StartSessionDto extends GetVoterInElectionDto {}
 
@@ -48,3 +49,44 @@ export class VerifyVoteDto extends MongoIdDto {
     @IsHexadecimal({ message: invalidDataField('blockchainRef', 'hexadecimal') })
     blockchainRef: string
 }
+
+export class FilterVotesDto extends PaginationQueryDto {
+    @IsOptional()
+    @IsMongoId({ message: invalidDataField('voterId', 'MongoDB ObjectId') })
+    voterId?: string
+
+    @IsOptional()
+    @IsDateString({ strict: true }, { message: invalidDataField('startDate', 'ISO date-time') })
+    startDate?: string
+
+    @IsOptional()
+    @IsDateString({ strict: true }, { message: invalidDataField('endDate', 'ISO date-time') })
+    endDate?: string
+
+    @IsDefined({ message: missingDataField('electionId') })
+    @IsMongoId({ message: invalidDataField('electionId', 'MongoDB ObjectId') })
+    electionId: string
+}
+
+export class BffFilterVotesDto extends PaginationQueryDto {
+    @IsOptional()
+    @IsEmail({}, { message: invalidDataField('voterEmail') })
+    voterEmail?: string
+
+    @IsOptional()
+    @IsDateString({ strict: true }, { message: invalidDataField('startDate', 'ISO date-time') })
+    startDate?: string
+
+    @IsOptional()
+    @IsDateString({ strict: true }, { message: invalidDataField('endDate', 'ISO date-time') })
+    endDate?: string
+
+    @IsDefined({ message: missingDataField('electionId') })
+    @IsMongoId({ message: invalidDataField('electionId', 'MongoDB ObjectId') })
+    electionId: string
+}
+
+export class FilterVotesQueryDto extends OmitType(BffFilterVotesDto, ['electionId']) {}
+export class SignBlindedVoteBodyDto extends OmitType(SignBlindedVoteDto, ['voterId']) {}
+export class SubmitBlindedCommitmentBodyDto extends OmitType(SubmitBlindedCommitmentDto, ['electionId', 'voterId']) {}
+export class VerifyVoteBodyDto extends OmitType(VerifyVoteDto, ['id']) {}

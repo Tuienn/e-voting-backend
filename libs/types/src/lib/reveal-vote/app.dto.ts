@@ -1,4 +1,5 @@
 import { invalidDataField, missingDataField } from '@libs/constants/text.constant'
+import { OmitType } from '@nestjs/swagger'
 import { IsDefined, IsHexadecimal, IsMongoId } from 'class-validator'
 
 export class RevealVoteDto {
@@ -18,3 +19,5 @@ export class RevealVoteDto {
     @IsHexadecimal({ message: invalidDataField('sPrime param', 'hexadecimal') })
     sPrime: string
 }
+
+export class RevealVoteBodyDto extends OmitType(RevealVoteDto, ['electionId']) {}

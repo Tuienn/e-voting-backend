@@ -29,3 +29,9 @@ export class MongoIdsDto {
     @IsMongoIdArray('ids')
     ids: string[]
 }
+
+export class ElectionIdDto {
+    @IsDefined({ message: missingDataField('electionId') })
+    @IsMongoId({ message: invalidDataField('electionId', 'MongoDB ObjectId') })
+    electionId: string
+}

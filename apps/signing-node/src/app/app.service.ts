@@ -1,11 +1,12 @@
 import { encrypt, decrypt } from '@libs/utils/crypto.util'
-import { ElectionIdDto, SessionIdDto, SignPartialDto } from '@libs/types/signing-node/app.dto'
+import { SessionIdDto, SignPartialDto } from '@libs/types/signing-node/app.dto'
 import { BadGatewayException, Injectable, NotFoundException } from '@nestjs/common'
 import { CryptoService } from '../infrastructure/crypto/crypto.service'
 import { CONFIGURATION } from '../configuration'
 import { PrismaService } from '../infrastructure/prisma/prisma.service'
 import { handlePrismaError } from '@libs/utils/handle-prisma-error.util'
 import { generateKeyPair, getParams, hexToPoint, hexToScalar, pointToHex, scalarToHex } from '@libs/ec-schnorr'
+import { ElectionIdDto } from '@libs/types/common.dto'
 
 @Injectable()
 export class AppService {
