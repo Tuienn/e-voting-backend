@@ -242,7 +242,7 @@ export class AppService {
                 candidateId,
                 candidateName: nameMap.get(candidateId) ?? null,
                 dbRevealCount,
-                chainRevealCount: chainRevealCount
+                chainRevealCount
             }
         })
 

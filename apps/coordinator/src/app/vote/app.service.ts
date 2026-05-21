@@ -156,6 +156,8 @@ export class AppService {
             (voters as { id: string; email: string; name: string }[]).map((voter) => [voter.id, voter])
         )
 
+        const totalVoters = await this.prisma.electionVoter.count({ where: { electionId } })
+
         return {
             data: votes.map((vote) => ({
                 ...vote,
@@ -164,7 +166,8 @@ export class AppService {
             totalPages: Math.ceil(total / pageSize),
             currentPage: page,
             pageSize,
-            total
+            total,
+            totalVoters
         }
     }
 
