@@ -27,7 +27,7 @@ model RevealedVote {
     candidateId String @db.ObjectId
 
     revealKey String
-    blockchainRef   String?
+    blockchainRef   String
     signature SignatureRevealedVote
     revealedAt DateTime @default(now())
 

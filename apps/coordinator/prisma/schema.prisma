@@ -53,6 +53,8 @@ model ElectionVoter {
 
   votes Vote[]
 
+  createdAt DateTime @default(now())
+
   @@unique([electionId, voterId]) //mỗi voter chỉ vote 1 lần cho 1 election
   @@index([voterId]) //lấy danh sách election của một voter
   @@map("election_voters")
@@ -68,10 +70,9 @@ model Vote {
   voter   ElectionVoter @relation(fields: [voterId], references: [id])
 
   blindedCommitment String
-  blockchainRef     String?
+  blockchainRef     String
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
 
   @@unique([electionId, voterId])
   @@unique([electionId, blindedCommitment]) //đảm bảo không có 2 vote nào có blindedCommitment giống nhau trong cùng 1 election

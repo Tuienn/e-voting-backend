@@ -414,6 +414,11 @@ export class AppService {
 
             //SECTION - Build merkle tree — ngoài transaction, tránh giữ lock
             const commitmentVotes = await this.voteService.getCommitmentVotesByElectionId({ id: dto.id })
+
+            if (commitmentVotes.length === 0) {
+                throw new ConflictException('No votes submitted for this election')
+            }
+
             const leaves = commitmentVotes.map((cv) => cv.blindedCommitment)
             const { root } = buildCommitmentMerkleTree(leaves)
 
@@ -505,6 +510,41 @@ export class AppService {
         } catch (e) {
             handlePrismaError(e)
         }
+    }
+
+    async getElectionAllInfo(dto: MongoIdDto) {
+        const election = await this.getElectionById(dto)
+        if (!election) {
+            throw new NotFoundException('Election not found')
+        }
+
+        const [candidates, electionVoters] = await Promise.all([
+            election.candidateIds.length > 0
+                ? lastValueFrom(
+                      this.identityClient.send(IDENTITY_MESSAGE_PATTERNS.GET_USERS_BY_IDS, {
+                          ids: election.candidateIds,
+                          role: 'CANDIDATE'
+                      })
+                  )
+                : Promise.resolve([]),
+            this.prisma.electionVoter.findMany({
+                where: { electionId: dto.id },
+                select: { voterId: true }
+            })
+        ])
+
+        const voterIds = electionVoters.map((ev) => ev.voterId)
+        const voters =
+            voterIds.length > 0
+                ? await lastValueFrom(
+                      this.identityClient.send(IDENTITY_MESSAGE_PATTERNS.GET_USERS_BY_IDS, {
+                          ids: voterIds,
+                          role: 'VOTER'
+                      })
+                  )
+                : []
+
+        return { ...election, candidates: candidates ?? [], voters: voters ?? [] }
     }
 
     async getVoterInElection(dto: GetVoterInElectionDto) {

@@ -74,6 +74,10 @@ export class AppService {
         return election
     }
 
+    async getElectionAllInfo(dto: MongoIdDto) {
+        return lastValueFrom(this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTION_ALL_INFO, dto))
+    }
+
     async getElectionsByCandidateId(dto: MongoIdDto) {
         return lastValueFrom(
             this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTIONS_BY_CANDIDATE_ID, dto)

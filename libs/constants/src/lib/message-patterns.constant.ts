@@ -29,6 +29,7 @@ export const COORDINATOR_MESSAGE_PATTERNS = {
     GET_VOTER_IN_ELECTION: 'election.get_voter_in_election',
     GET_ELECTIONS_BY_VOTER_ID: 'election.get_elections_by_voter_id',
     GET_ELECTIONS_BY_CANDIDATE_ID: 'election.get_elections_by_candidate_id',
+    GET_ELECTION_ALL_INFO: 'election.get_election_all_info',
 
     START_SESSION: 'vote.start_vote_session',
     SIGN_BLINDED_VOTE: 'vote.sign_blinded_vote',

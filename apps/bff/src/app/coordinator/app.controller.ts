@@ -265,6 +265,24 @@ export class AppController {
     }
 
     @Roles('ADMIN')
+    @Get('election/:id/all')
+    @ApiParam({
+        name: 'id',
+        type: String,
+        description: 'Election ID',
+        examples: { example1: { value: '69f5b5475c48c621a0681cbc' } }
+    })
+    async getElectionAllInfo(@Param() dto: MongoIdDto) {
+        const result = await this.appService.getElectionAllInfo(dto)
+
+        return new ResponseDto({
+            data: result,
+            message: 'Election info retrieved successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Roles('ADMIN')
     @Get('election/:id')
     @ApiParam({
         name: 'id',

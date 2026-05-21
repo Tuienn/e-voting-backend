@@ -79,4 +79,9 @@ export class AppController {
     async getElectionsByCandidateId(@Payload() dto: MongoIdDto) {
         return await this.appService.getElectionsByCandidateId(dto)
     }
+
+    @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTION_ALL_INFO)
+    async getElectionAllInfo(@Payload() dto: MongoIdDto) {
+        return await this.appService.getElectionAllInfo(dto)
+    }
 }
