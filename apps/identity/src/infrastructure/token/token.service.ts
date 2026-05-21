@@ -15,11 +15,12 @@ export class TokenService {
     ) {}
 
     //SECTION - Tạo cặp access token và refresh token
-    async generateTokens(payload: { userId: string; email: string; role: Role }) {
+    async generateTokens(payload: { userId: string; email: string; role: Role; isActive: boolean }) {
         const jwtPayload: JwtPayload = {
             sub: payload.userId,
             email: payload.email,
-            role: payload.role
+            role: payload.role,
+            isActive: payload.isActive
         }
 
         const [accessToken, refreshToken] = await Promise.all([
@@ -63,7 +64,12 @@ export class TokenService {
 
         //NOTE - Nếu hợp lệ thì tạo mới cặp token và lưu refresh token mới vào cache
         await this.cacheManager.del(`refreshToken:${userId}`) // Xóa refresh token cũ khỏi cache
-        const newTokens = await this.generateTokens({ userId, email: payload.email, role: payload.role })
+        const newTokens = await this.generateTokens({
+            userId,
+            email: payload.email,
+            role: payload.role,
+            isActive: payload.isActive
+        })
         return newTokens
     }
 

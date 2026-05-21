@@ -1,4 +1,9 @@
-import { CreateElectionDto, FilterElectionsDto, VoterIdsDto } from '@libs/types/coordinator/election.dto'
+import {
+    CandidateIdsDto,
+    CreateElectionDto,
+    FilterElectionsDto,
+    VoterIdsDto
+} from '@libs/types/coordinator/election.dto'
 import { Inject, Injectable, NotFoundException } from '@nestjs/common'
 import { CONFIGURATION } from '../../configuration'
 import { ClientProxy } from '@nestjs/microservices'
@@ -27,8 +32,26 @@ export class AppService {
         return lastValueFrom(this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.CREATE_ELECTION, dto))
     }
 
+    async addCandidatesToElection(dto: MongoIdDto & CandidateIdsDto) {
+        return lastValueFrom(this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.ADD_CANDIDATES_TO_ELECTION, dto))
+    }
+
+    async deleteCandidatesFromElection(dto: MongoIdDto & CandidateIdsDto) {
+        return lastValueFrom(
+            this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.DELETE_CANDIDATES_FROM_ELECTION, dto)
+        )
+    }
+
     async addVotersToElection(dto: MongoIdDto & VoterIdsDto) {
         return lastValueFrom(this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.ADD_VOTERS_TO_ELECTION, dto))
+    }
+
+    async deleteVotersFromElection(dto: MongoIdDto & VoterIdsDto) {
+        return lastValueFrom(this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.DELETE_VOTERS_FROM_ELECTION, dto))
+    }
+
+    async getElectionsByVoterId(dto: MongoIdDto) {
+        return lastValueFrom(this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTIONS_BY_VOTER_ID, dto))
     }
 
     async startElection(dto: MongoIdDto) {
@@ -49,6 +72,12 @@ export class AppService {
         }
 
         return election
+    }
+
+    async getElectionsByCandidateId(dto: MongoIdDto) {
+        return lastValueFrom(
+            this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTIONS_BY_CANDIDATE_ID, dto)
+        )
     }
 
     //SECTION - Coordinator - Vote

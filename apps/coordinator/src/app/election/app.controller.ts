@@ -6,7 +6,8 @@ import {
     GetVoterInElectionDto,
     CreateElectionDto,
     FilterElectionsDto,
-    VoterIdsDto
+    VoterIdsDto,
+    CandidateIdsDto
 } from '@libs/types/coordinator/election.dto'
 import { MongoIdDto } from '@libs/types/common.dto'
 
@@ -24,9 +25,24 @@ export class AppController {
         return await this.appService.createElection(dto)
     }
 
+    @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.ADD_CANDIDATES_TO_ELECTION)
+    async addCandidatesToElection(@Payload() dto: MongoIdDto & CandidateIdsDto) {
+        return await this.appService.addCandidatesToElection(dto)
+    }
+
+    @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.DELETE_CANDIDATES_FROM_ELECTION)
+    async deleteCandidatesFromElection(@Payload() dto: MongoIdDto & CandidateIdsDto) {
+        return await this.appService.deleteCandidatesFromElection(dto)
+    }
+
     @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.ADD_VOTERS_TO_ELECTION)
     async addVotersToElection(@Payload() dto: MongoIdDto & VoterIdsDto) {
         return await this.appService.addVotersToElection(dto)
+    }
+
+    @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.DELETE_VOTERS_FROM_ELECTION)
+    async deleteVotersFromElection(@Payload() dto: MongoIdDto & VoterIdsDto) {
+        return await this.appService.deleteVotersFromElection(dto)
     }
 
     @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.START_ELECTION)
@@ -52,5 +68,15 @@ export class AppController {
     @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.GET_VOTER_IN_ELECTION)
     async checkVoterInElection(@Payload() dto: GetVoterInElectionDto) {
         return await this.appService.getVoterInElection(dto)
+    }
+
+    @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTIONS_BY_VOTER_ID)
+    async getElectionsByVoterId(@Payload() dto: MongoIdDto) {
+        return await this.appService.getElectionsByVoterId(dto)
+    }
+
+    @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTIONS_BY_CANDIDATE_ID)
+    async getElectionsByCandidateId(@Payload() dto: MongoIdDto) {
+        return await this.appService.getElectionsByCandidateId(dto)
     }
 }

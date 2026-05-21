@@ -35,6 +35,9 @@ export class BffEnvConfiguration {
     @IsString()
     CORS_ORIGINS: string
 
+    @IsString()
+    ADMIN_WEB_ORIGIN: string
+
     @IsNumber()
     @Min(1000)
     THROTTLE_TTL: number
@@ -72,7 +75,8 @@ export class BffEnvConfiguration {
         this.COORDINATOR_TCP_HOST = process.env['COORDINATOR_TCP_HOST'] || 'localhost'
         this.COORDINATOR_TCP_PORT = Number(process.env['COORDINATOR_TCP_PORT']) || 3303
 
-        this.CORS_ORIGINS = process.env['CORS_ORIGINS'] || 'http://localhost:5173,http://localhost:3000'
+        this.CORS_ORIGINS = process.env['CORS_ORIGINS'] || 'http://localhost:5173'
+        this.ADMIN_WEB_ORIGIN = process.env['ADMIN_WEB_ORIGIN'] || 'http://localhost:5173'
         this.THROTTLE_TTL = Number(process.env['THROTTLE_TTL']) || 60000
         this.THROTTLE_LIMIT = Number(process.env['THROTTLE_LIMIT']) || 100
         this.JWT_ACCESS_SECRET = process.env['JWT_ACCESS_SECRET'] || 'default_access_secret'

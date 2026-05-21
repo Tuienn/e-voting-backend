@@ -18,12 +18,17 @@ export const IDENTITY_MESSAGE_PATTERNS = {
 export const COORDINATOR_MESSAGE_PATTERNS = {
     FILTER_ELECTIONS: 'election.filter_elections',
     CREATE_ELECTION: 'election.create_election',
+    ADD_CANDIDATES_TO_ELECTION: 'election.add_candidates_to_election',
+    DELETE_CANDIDATES_FROM_ELECTION: 'election.delete_candidates_from_election',
     START_ELECTION: 'election.start_election',
     END_ELECTION: 'election.end_election',
     COMPLETE_ELECTION: 'election.complete_election',
     GET_ELECTION_BY_ID: 'election.get_election_by_id',
     ADD_VOTERS_TO_ELECTION: 'election.add_voters_to_election',
+    DELETE_VOTERS_FROM_ELECTION: 'election.delete_voters_from_election',
     GET_VOTER_IN_ELECTION: 'election.get_voter_in_election',
+    GET_ELECTIONS_BY_VOTER_ID: 'election.get_elections_by_voter_id',
+    GET_ELECTIONS_BY_CANDIDATE_ID: 'election.get_elections_by_candidate_id',
 
     START_SESSION: 'vote.start_vote_session',
     SIGN_BLINDED_VOTE: 'vote.sign_blinded_vote',

@@ -4,14 +4,14 @@ export type JwtPayload = {
     sub: string
     email: string
     role: Role
+    isActive: boolean
     iat?: number //Issued At
     exp?: number //Expires At
 }
 
-export type UserPayload = {
+export type RequestWithUser = {
     userId: string
     email: string
     role: Role
+    isActive: boolean
 }
-
-export type RequestWithUser = UserPayload

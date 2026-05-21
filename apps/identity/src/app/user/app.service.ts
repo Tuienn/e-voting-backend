@@ -154,7 +154,7 @@ export class AppService {
             this.prisma.user.findMany({
                 orderBy: { createdAt: 'desc' },
                 where: removeUndefinedObj({
-                    email: email ? { contains: email, mode: 'insensitive' } : undefined,
+                    email: email,
                     name: name ? { contains: name, mode: 'insensitive' } : undefined,
                     isActive: isActive,
                     role: role ? { equals: role as Role } : undefined

@@ -3,6 +3,10 @@ export const removeUndefinedObj = <T>(obj: T): T => {
         return obj.map(removeUndefinedObj).filter((v) => v !== undefined) as unknown as T
     }
 
+    if (obj instanceof Date) {
+        return obj
+    }
+
     if (obj !== null && typeof obj === 'object') {
         return Object.fromEntries(
             Object.entries(obj)

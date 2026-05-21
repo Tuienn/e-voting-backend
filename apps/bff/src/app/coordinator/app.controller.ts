@@ -1,7 +1,12 @@
 import { ApiBody, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger'
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common'
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common'
 import { AppService } from './app.service'
-import { CreateElectionDto, FilterElectionsDto, VoterIdsDto } from '@libs/types/coordinator/election.dto'
+import {
+    CandidateIdsDto,
+    CreateElectionDto,
+    FilterElectionsDto,
+    VoterIdsDto
+} from '@libs/types/coordinator/election.dto'
 import { Public } from '@libs/decorators/public.decorator'
 import { Roles } from '@libs/decorators/roles.decorator'
 import { ResponseDto } from '@libs/types/response.dto'
@@ -19,7 +24,7 @@ export class AppController {
     @Public()
     @Get('election/filter')
     @ApiQuery({ name: 'name', required: false, type: String })
-    @ApiQuery({ name: 'status', required: false, type: String, enum: ['PENDING', 'ACTIVE', 'COMPLETED'] })
+    @ApiQuery({ name: 'status', required: false, type: String, enum: ['PENDING', 'ACTIVE', 'CLOSED', 'COMPLETED'] })
     @ApiQuery({ name: 'startDate', required: false, type: String, format: 'date-time' })
     @ApiQuery({ name: 'endDate', required: false, type: String, format: 'date-time' })
     @ApiQuery({ name: 'page', required: false, type: Number })
@@ -56,6 +61,96 @@ export class AppController {
     }
 
     @Roles('ADMIN')
+    @Post('election/:id/add-candidates')
+    @ApiParam({
+        name: 'id',
+        type: String,
+        description: 'Election ID',
+        examples: { example1: { value: '69f5b5475c48c621a0681cbc' } }
+    })
+    @ApiBody({
+        type: CandidateIdsDto,
+        examples: {
+            example1: { value: { candidateIds: ['69f5b5475c48c621a0681cbc', '69ef6ddc1577a677366cd218'] } }
+        }
+    })
+    async addCandidatesToElection(@Param() electionIdDto: MongoIdDto, @Body() candidateIdsDto: CandidateIdsDto) {
+        const result = await this.appService.addCandidatesToElection({
+            id: electionIdDto.id,
+            candidateIds: candidateIdsDto.candidateIds
+        })
+
+        return new ResponseDto({
+            data: result,
+            message: 'Candidates added to election successfully',
+            statusCode: HttpStatus.CREATED
+        })
+    }
+
+    @Roles('ADMIN')
+    @Delete('election/:id/delete-candidates')
+    @ApiParam({
+        name: 'id',
+        type: String,
+        description: 'Election ID',
+        examples: { example1: { value: '69f5b5475c48c621a0681cbc' } }
+    })
+    @ApiBody({
+        type: CandidateIdsDto,
+        examples: {
+            example1: { value: { candidateIds: ['69f5b5475c48c621a0681cbc', '69ef6ddc1577a677366cd218'] } }
+        }
+    })
+    async deleteCandidatesFromElection(@Param() electionIdDto: MongoIdDto, @Body() candidateIdsDto: CandidateIdsDto) {
+        const result = await this.appService.deleteCandidatesFromElection({
+            id: electionIdDto.id,
+            candidateIds: candidateIdsDto.candidateIds
+        })
+
+        return new ResponseDto({
+            data: result,
+            message: 'Candidates deleted from election successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Roles('ADMIN')
+    @Get('election/voter/:id/elections')
+    @ApiParam({
+        name: 'id',
+        type: String,
+        description: 'Voter ID',
+        examples: { example1: { value: '69f5b5475c48c621a0681cbc' } }
+    })
+    async getElectionsByVoterId(@Param() dto: MongoIdDto) {
+        const result = await this.appService.getElectionsByVoterId(dto)
+
+        return new ResponseDto({
+            data: result,
+            message: 'Elections retrieved successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Roles('ADMIN')
+    @Get('election/candidate/:id/elections')
+    @ApiParam({
+        name: 'id',
+        type: String,
+        description: 'Candidate ID',
+        examples: { example1: { value: '69f5b5475c48c621a0681cbc' } }
+    })
+    async getElectionsByCandidateId(@Param() dto: MongoIdDto) {
+        const result = await this.appService.getElectionsByCandidateId(dto)
+
+        return new ResponseDto({
+            data: result,
+            message: 'Elections retrieved successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Roles('ADMIN')
     @Post('election/:id/add-voters')
     @ApiParam({
         name: 'id',
@@ -75,12 +170,58 @@ export class AppController {
             voterIds: voterIdsDto.voterIds
         })
 
+        let votersAddCount = 0
+
+        result.electionVoters.forEach((voter: any) => {
+            if (voterIdsDto.voterIds.includes(voter.voterId.toString())) {
+                votersAddCount++
+            }
+        })
+
         return new ResponseDto({
             data: result,
             message:
-                result.electionVoters && result.electionVoters.length > 0
-                    ? `${result.electionVoters.length} voters added to election successfully`
+                votersAddCount > 0
+                    ? `${votersAddCount} voters added to election successfully`
                     : 'No voters added to election',
+            statusCode: HttpStatus.CREATED
+        })
+    }
+
+    @Roles('ADMIN')
+    @Delete('election/:id/delete-voters')
+    @ApiParam({
+        name: 'id',
+        type: String,
+        description: 'Election ID',
+        examples: { example1: { value: '69f5b5475c48c621a0681cbc' } }
+    })
+    @ApiBody({
+        type: VoterIdsDto,
+        examples: {
+            example1: { value: { voterIds: ['69f5b5475c48c621a0681cbc', '69ef6ddc1577a677366cd218'] } }
+        }
+    })
+    async deleteVotersFromElection(@Param() electionIdDto: MongoIdDto, @Body() voterIdsDto: VoterIdsDto) {
+        const result = await this.appService.deleteVotersFromElection({
+            id: electionIdDto.id,
+            voterIds: voterIdsDto.voterIds
+        })
+
+        let votersDeleteCount = 0
+
+        result.electionVoters.forEach((voter: any) => {
+            if (voterIdsDto.voterIds.includes(voter.voterId.toString())) {
+                votersDeleteCount++
+            }
+        })
+
+        return new ResponseDto({
+            data: result,
+            message:
+                votersDeleteCount > 0
+                    ? `${votersDeleteCount} voters deleted from election successfully`
+                    : 'No voters deleted from election',
             statusCode: HttpStatus.OK
         })
     }

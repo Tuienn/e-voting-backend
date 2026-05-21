@@ -1,1 +1,1 @@
-export type ElectionStatus = 'PENDING' | 'ACTIVE' | 'COMPLETED'
+export type ElectionStatus = 'PENDING' | 'ACTIVE' | 'CLOSED' | 'COMPLETED'

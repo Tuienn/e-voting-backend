@@ -26,7 +26,19 @@ export class AppService {
             throw new UnauthorizedException(AUTH_TEXT.INVALID_CREDENTIALS)
         }
 
-        return this.tokenService.generateTokens({ userId: user.id, email: user.email, role: user.role })
+        const tokens = await this.tokenService.generateTokens({
+            userId: user.id,
+            email: user.email,
+            role: user.role,
+            isActive: user.isActive
+        })
+
+        return {
+            id: user.id,
+            email: user.email,
+            role: user.role,
+            ...tokens
+        }
     }
 
     async refreshToken(dto: RefreshTokenDto) {

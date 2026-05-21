@@ -1,5 +1,18 @@
 import { CurrentUser } from '@libs/decorators/current-user.decorator'
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, Patch, Post, Query } from '@nestjs/common'
+import {
+    Body,
+    Controller,
+    Delete,
+    Get,
+    Headers,
+    HttpCode,
+    HttpStatus,
+    Param,
+    Patch,
+    Post,
+    Query,
+    UnauthorizedException
+} from '@nestjs/common'
 import { AppService } from './app.service'
 import { CreateBulkUsersDto, CreateUserDto, FilterUsersDto, UpdateUserByIdDto } from '@libs/types/identity/user.dto'
 import { ApiBody, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger'
@@ -10,6 +23,7 @@ import { Public } from '@libs/decorators/public.decorator'
 import { Roles } from '@libs/decorators/roles.decorator'
 import { ROLE_ARRAY } from '@libs/constants/common.constant'
 import { RequestWithUser } from '@libs/types/identity/auth.type'
+import { CONFIGURATION } from '../../configuration'
 
 @ApiTags('Identity')
 @Controller('identity')
@@ -17,15 +31,6 @@ export class AppController {
     constructor(private readonly appService: AppService) {}
 
     //SECTION - Identity - User
-    @Get('user/me')
-    async getMyProfile(@CurrentUser() user: RequestWithUser) {
-        const result = await this.appService.getUserById({ id: user.userId })
-
-        return new ResponseDto({
-            data: result,
-            message: 'Get profile successfully'
-        })
-    }
 
     @Roles('ADMIN')
     @Post('user/create-user')
@@ -153,6 +158,19 @@ export class AppController {
     }
 
     @Roles('ADMIN')
+    @Get('user/:id/all')
+    @ApiParam({ name: 'id', type: String, description: 'User ID' })
+    async getAllInfoUserById(@Param() dto: MongoIdDto) {
+        const result = await this.appService.getAllInfoUserById(dto)
+
+        return new ResponseDto({
+            data: result,
+            message: 'User retrieved successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Roles('ADMIN')
     @Get('user/:id')
     @ApiParam({ name: 'id', type: String, description: 'User ID' })
     async getUserById(@Param() dto: MongoIdDto) {
@@ -202,6 +220,16 @@ export class AppController {
     }
 
     //SECTION - Identity - Auth
+    @Get('auth/me')
+    async getMyProfile(@CurrentUser() user: RequestWithUser) {
+        const result = await this.appService.getUserById({ id: user.userId })
+
+        return new ResponseDto({
+            data: result,
+            message: 'Get profile successfully'
+        })
+    }
+
     @Public()
     @HttpCode(HttpStatus.OK)
     @Post('auth/sign-in')
@@ -216,8 +244,12 @@ export class AppController {
             }
         }
     })
-    async signIn(@Body() data: SignInDto) {
+    async signIn(@Headers('origin') origin: string, @Body() data: SignInDto) {
         const result = await this.appService.signIn(data)
+
+        if (['VOTER', 'CANDIDATE'].includes(result.role) && origin === CONFIGURATION.BFF_CONFIG.ADMIN_WEB_ORIGIN) {
+            throw new UnauthorizedException('Admin users can only access the admin web')
+        }
 
         return new ResponseDto({
             data: result,
@@ -226,6 +258,7 @@ export class AppController {
         })
     }
 
+    @Public()
     @Post('auth/refresh-token')
     @HttpCode(HttpStatus.OK)
     @ApiBody({

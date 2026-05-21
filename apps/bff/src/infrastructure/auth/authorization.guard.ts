@@ -33,6 +33,10 @@ export class AuthorizationGuard implements CanActivate {
             throw new ForbiddenException('You do not have permission to access this resource')
         }
 
+        if (!user?.isActive) {
+            throw new ForbiddenException('Your account is inactive. Please contact support.')
+        }
+
         return true
     }
 }

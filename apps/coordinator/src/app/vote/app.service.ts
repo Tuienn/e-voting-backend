@@ -96,7 +96,8 @@ export class AppService {
                     electionId: electionVoter.electionId,
                     voterId: electionVoter.id
                 }
-            }
+            },
+            select: { id: true }
         })
 
         if (existVote) {
@@ -365,7 +366,8 @@ export class AppService {
             where: {
                 id: dto.id,
                 electionId: dto.electionId
-            }
+            },
+            select: { id: true, blindedCommitment: true, blockchainRef: true }
         })
 
         if (dbExistVote) {
@@ -424,7 +426,6 @@ export class AppService {
                     normalizedBlindedCommitment,
                     proof.proof
                 )
-                console.log('chainVerifyProofRes', chainVerifyProofRes)
 
                 const chainVerifyProof = chainVerifyProofRes.result ? JSON.parse(chainVerifyProofRes.result) : null
 

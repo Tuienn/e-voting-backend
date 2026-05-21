@@ -42,7 +42,9 @@ export class FilterElectionsDto extends PaginationQueryDto {
     name?: string
 
     @IsOptional()
-    @IsEnum(['PENDING', 'ACTIVE', 'COMPLETED'], { message: invalidDataField('status', 'PENDING | ACTIVE | COMPLETED') })
+    @IsEnum(['PENDING', 'ACTIVE', 'CLOSED', 'COMPLETED'], {
+        message: invalidDataField('status', 'PENDING | ACTIVE | CLOSED | COMPLETED')
+    })
     status?: ElectionStatus
 
     @IsOptional()
@@ -60,6 +62,14 @@ export class VoterIdsDto {
     @ArrayNotEmpty({ message: invalidDataField('voterIds', 'not empty array') })
     @ArrayUnique({ message: invalidDataField('voterIds', 'unique MongoDB ObjectId') })
     voterIds: string[]
+}
+
+export class CandidateIdsDto {
+    @IsDefined({ message: missingDataField('candidateIds') })
+    @IsMongoIdArray('candidateIds')
+    @ArrayNotEmpty({ message: invalidDataField('candidateIds', 'not empty array') })
+    @ArrayUnique({ message: invalidDataField('candidateIds', 'unique MongoDB ObjectId') })
+    candidateIds: string[]
 }
 
 export class GetVoterInElectionDto {

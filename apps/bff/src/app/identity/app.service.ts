@@ -4,13 +4,14 @@ import { Inject, Injectable } from '@nestjs/common'
 import { ClientProxy } from '@nestjs/microservices'
 import { lastValueFrom } from 'rxjs'
 import { CONFIGURATION } from '../../configuration'
-import { IDENTITY_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
+import { COORDINATOR_MESSAGE_PATTERNS, IDENTITY_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
 import { CreateBulkUsersDto, CreateUserDto, FilterUsersDto, UpdateUserByIdDto } from '@libs/types/identity/user.dto'
 
 @Injectable()
 export class AppService {
     constructor(
-        @Inject(`TCP_${CONFIGURATION.BFF_CONFIG.IDENTITY_TCP_NAME}`) private readonly identityClient: ClientProxy
+        @Inject(`TCP_${CONFIGURATION.BFF_CONFIG.IDENTITY_TCP_NAME}`) private readonly identityClient: ClientProxy,
+        @Inject(`TCP_${CONFIGURATION.BFF_CONFIG.COORDINATOR_TCP_NAME}`) private readonly coordinatorClient: ClientProxy
     ) {}
 
     //SECTION - Identity - User
@@ -20,6 +21,26 @@ export class AppService {
 
     async getUserById(dto: MongoIdDto) {
         return lastValueFrom(this.identityClient.send(IDENTITY_MESSAGE_PATTERNS.GET_USER_BY_ID, dto))
+    }
+
+    async getAllInfoUserById(dto: MongoIdDto) {
+        const user = await this.getUserById(dto)
+
+        if (!user || !['VOTER', 'CANDIDATE'].includes(user.role)) {
+            return user
+        }
+
+        const pattern =
+            user.role === 'VOTER'
+                ? COORDINATOR_MESSAGE_PATTERNS.GET_ELECTIONS_BY_VOTER_ID
+                : COORDINATOR_MESSAGE_PATTERNS.GET_ELECTIONS_BY_CANDIDATE_ID
+
+        const elections = await lastValueFrom(this.coordinatorClient.send(pattern, dto))
+
+        return {
+            ...user,
+            elections: elections ?? []
+        }
     }
 
     async disableUserById(dto: MongoIdDto) {

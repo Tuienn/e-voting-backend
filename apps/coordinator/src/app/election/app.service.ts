@@ -4,6 +4,7 @@ import { PaginationMeta } from '@libs/types/common.type'
 import { handlePrismaError } from '@libs/utils/handle-prisma-error.util'
 import { MongoIdDto } from '@libs/types/common.dto'
 import {
+    CandidateIdsDto,
     CreateElectionDto,
     FilterElectionsDto,
     GetVoterInElectionDto,
@@ -47,6 +48,30 @@ export class AppService {
         this.signingNodeClients = CONFIGURATION.COORDINATOR_CONFIG.SIGNING_NODES_TCP_NAME.map((serviceName) =>
             this.moduleRef.get<ClientProxy>(`TCP_${serviceName}`, { strict: false })
         )
+    }
+
+    private async checkCandidatesExistAndActive(candidateIds: string[]) {
+        const candidates = await lastValueFrom(
+            this.identityClient.send(IDENTITY_MESSAGE_PATTERNS.GET_USERS_BY_IDS, {
+                ids: candidateIds,
+                role: 'CANDIDATE'
+            })
+        )
+
+        const requestedUnique = [...new Set(candidateIds)]
+        const foundIds = new Set(candidates.map((c: any) => c.id))
+        const missingIds = requestedUnique.filter((id) => !foundIds.has(id))
+
+        if (missingIds.length > 0) {
+            throw new BadRequestException(
+                `Candidate IDs do not exist or are not users with role CANDIDATE: ${missingIds.join(', ')}`
+            )
+        }
+
+        const inactiveIds = candidates.filter((c: any) => !c.isActive).map((c: any) => c.id)
+        if (inactiveIds.length > 0) {
+            throw new BadRequestException(`Some candidates are inactive: ${inactiveIds.join(', ')}`)
+        }
     }
 
     async generateCollectivePublicKey(electionId: string): Promise<string> {
@@ -112,27 +137,7 @@ export class AppService {
 
     async createElection(dto: CreateElectionDto) {
         //SECTION - Kiểm tra candidateIds có tồn tại và active không
-        const candidates = await lastValueFrom(
-            this.identityClient.send(IDENTITY_MESSAGE_PATTERNS.GET_USERS_BY_IDS, {
-                ids: dto.candidateIds,
-                role: 'CANDIDATE'
-            })
-        )
-
-        const requestedUnique = [...new Set(dto.candidateIds)]
-        const foundIds = new Set(candidates.map((c: any) => c.id))
-        const missingIds = requestedUnique.filter((id) => !foundIds.has(id))
-
-        if (missingIds.length > 0) {
-            throw new BadRequestException(
-                `Candidate IDs do not exist or are not users with role CANDIDATE: ${missingIds.join(', ')}`
-            )
-        }
-
-        const inactiveIds = candidates.filter((c: any) => !c.isActive).map((c: any) => c.id)
-        if (inactiveIds.length > 0) {
-            throw new BadRequestException(`Some candidates are inactive: ${inactiveIds.join(', ')}`)
-        }
+        await this.checkCandidatesExistAndActive(dto.candidateIds)
 
         try {
             return await this.prisma.election.create({
@@ -151,6 +156,79 @@ export class AppService {
         }
     }
 
+    async addCandidatesToElection(dto: MongoIdDto & CandidateIdsDto) {
+        try {
+            //SECTION - Kiểm tra election có tồn tại không
+            const election = await this.prisma.election.findUniqueOrThrow({
+                where: { id: dto.id },
+                select: { status: true }
+            })
+
+            if (election.status !== ElectionStatus.PENDING) {
+                throw new ConflictException('Only PENDING election can be added candidates')
+            }
+
+            //SECTION - Kiểm tra candidateIds có tồn tại và active không
+            await this.checkCandidatesExistAndActive(dto.candidateIds)
+
+            return await this.prisma.$transaction(async (tx) => {
+                const current = await tx.election.findUniqueOrThrow({
+                    where: { id: dto.id },
+                    select: { status: true, candidateIds: true }
+                })
+
+                if (current.status !== ElectionStatus.PENDING) {
+                    throw new ConflictException('Only PENDING election can be added candidates')
+                }
+
+                const mergeCandidateIds = Array.from(new Set([...(current.candidateIds ?? []), ...dto.candidateIds]))
+
+                //SECTION - Thêm candidates vào election
+                return await tx.election.update({
+                    where: {
+                        id: dto.id
+                    },
+                    data: {
+                        candidateIds: mergeCandidateIds
+                    },
+                    omit: {
+                        collectivePublicKey: true,
+                        blockchainRef: true,
+                        merkleRoot: true
+                    }
+                })
+            })
+        } catch (e) {
+            handlePrismaError(e)
+        }
+    }
+
+    async deleteCandidatesFromElection(dto: MongoIdDto & CandidateIdsDto) {
+        try {
+            const election = await this.prisma.election.findUniqueOrThrow({
+                where: {
+                    id: dto.id
+                },
+                select: { status: true, candidateIds: true }
+            })
+
+            if (election.status !== ElectionStatus.PENDING) {
+                throw new ConflictException('Only PENDING election can be removed candidates')
+            }
+
+            return await this.prisma.election.update({
+                where: {
+                    id: dto.id
+                },
+                data: {
+                    candidateIds: election.candidateIds.filter((id) => !dto.candidateIds.includes(id))
+                }
+            })
+        } catch (e) {
+            handlePrismaError(e)
+        }
+    }
+
     async addVotersToElection(dto: MongoIdDto & VoterIdsDto) {
         //NOTE - dentity service chậm hoặc timeout → transaction của MongoDB bị giữ mở → timeout.
         // Ngoài ra, validation voter xảy ra bên trong transaction tăng dead lock
@@ -158,7 +236,8 @@ export class AppService {
             const election = await this.prisma.election.findUniqueOrThrow({
                 where: {
                     id: dto.id
-                }
+                },
+                select: { status: true }
             })
 
             if (election.status !== ElectionStatus.PENDING) {
@@ -189,7 +268,7 @@ export class AppService {
             }
 
             return await this.prisma.$transaction(async (tx) => {
-                const current = await tx.election.findUniqueOrThrow({ where: { id: dto.id } })
+                const current = await tx.election.findUniqueOrThrow({ where: { id: dto.id }, select: { status: true } })
                 if (current.status !== ElectionStatus.PENDING) {
                     throw new ConflictException('Only PENDING election can be added voters')
                 }
@@ -219,6 +298,50 @@ export class AppService {
                 })
             })
         } catch (e) {
+            handlePrismaError(e, [{ code: 'P2002', message: 'Some voters are already added to election' }])
+        }
+    }
+
+    async deleteVotersFromElection(dto: MongoIdDto & VoterIdsDto) {
+        try {
+            const election = await this.prisma.election.findUniqueOrThrow({
+                where: { id: dto.id },
+                select: { status: true }
+            })
+
+            if (election.status !== ElectionStatus.PENDING) {
+                throw new ConflictException('Only PENDING election can be removed voters')
+            }
+
+            return await this.prisma.$transaction(async (tx) => {
+                const current = await tx.election.findUniqueOrThrow({ where: { id: dto.id }, select: { status: true } })
+                if (current.status !== ElectionStatus.PENDING) {
+                    throw new ConflictException('Only PENDING election can be removed voters')
+                }
+
+                //SECTION - Xóa voters khỏi election
+                return await tx.election.update({
+                    where: {
+                        id: dto.id
+                    },
+                    data: {
+                        electionVoters: {
+                            deleteMany: {
+                                voterId: { in: dto.voterIds }
+                            }
+                        }
+                    },
+                    include: {
+                        electionVoters: true
+                    },
+                    omit: {
+                        collectivePublicKey: true,
+                        blockchainRef: true,
+                        merkleRoot: true
+                    }
+                })
+            })
+        } catch (e) {
             handlePrismaError(e)
         }
     }
@@ -227,7 +350,11 @@ export class AppService {
         //SECTION - Pre-validate — không cần transaction
         const election = await this.prisma.election.findUniqueOrThrow({
             where: { id: dto.id },
-            include: { electionVoters: true }
+            select: {
+                status: true,
+                candidateIds: true,
+                electionVoters: { select: { id: true } }
+            }
         })
 
         if (election.status !== ElectionStatus.PENDING) {
@@ -247,7 +374,7 @@ export class AppService {
         try {
             return await this.prisma.$transaction(async (tx) => {
                 // Re-validate chống race condition (ai đó startElection đồng thời)
-                const current = await tx.election.findUniqueOrThrow({ where: { id: dto.id } })
+                const current = await tx.election.findUniqueOrThrow({ where: { id: dto.id }, select: { status: true } })
                 if (current.status !== ElectionStatus.PENDING) {
                     throw new ConflictException('Only PENDING election can be started')
                 }
@@ -270,7 +397,10 @@ export class AppService {
     async closeElection(dto: MongoIdDto) {
         try {
             //SECTION - Pre-validate — không cần transaction
-            const election = await this.prisma.election.findUniqueOrThrow({ where: { id: dto.id } })
+            const election = await this.prisma.election.findUniqueOrThrow({
+                where: { id: dto.id },
+                select: { startDate: true, endDate: true, status: true }
+            })
 
             if (!election.startDate) {
                 throw new ConflictException('Election not started')
@@ -294,7 +424,7 @@ export class AppService {
             //SECTION - Commit — transaction ngắn, chỉ re-validate + write
             const updatedElection = await this.prisma.$transaction(async (tx) => {
                 // Re-validate chống race condition (ai đó closeElection đồng thời)
-                const current = await tx.election.findUniqueOrThrow({ where: { id: dto.id } })
+                const current = await tx.election.findUniqueOrThrow({ where: { id: dto.id }, select: { status: true } })
                 if (current.status !== ElectionStatus.ACTIVE) {
                     throw new ConflictException('Only ACTIVE election can be closed')
                 }
@@ -329,9 +459,8 @@ export class AppService {
         try {
             const election = await this.prisma.$transaction(async (tx) => {
                 const election = await tx.election.findUniqueOrThrow({
-                    where: {
-                        id: dto.id
-                    }
+                    where: { id: dto.id },
+                    select: { status: true }
                 })
 
                 if (election.status === ElectionStatus.COMPLETED) {
@@ -415,6 +544,35 @@ export class AppService {
         return {
             electionVoter,
             voter
+        }
+    }
+
+    async getElectionsByVoterId(voterId: MongoIdDto) {
+        try {
+            const electionVoters = await this.prisma.electionVoter.findMany({
+                where: { voterId: voterId.id },
+                select: { election: true }
+            })
+
+            return electionVoters.map((ev) => ev.election)
+        } catch (e) {
+            handlePrismaError(e)
+        }
+    }
+
+    async getElectionsByCandidateId(candidateId: MongoIdDto) {
+        try {
+            const elections = await this.prisma.election.findMany({
+                where: {
+                    candidateIds: {
+                        has: candidateId.id
+                    }
+                }
+            })
+
+            return elections
+        } catch (e) {
+            handlePrismaError(e)
         }
     }
 

@@ -54,7 +54,7 @@ model ElectionVoter {
   votes Vote[]
 
   @@unique([electionId, voterId]) //mỗi voter chỉ vote 1 lần cho 1 election
-  @@index([voterId, electionId]) //lấy danh sách election của một voter
+  @@index([voterId]) //lấy danh sách election của một voter
   @@map("election_voters")
 }
 

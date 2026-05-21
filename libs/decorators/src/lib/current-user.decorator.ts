@@ -9,6 +9,7 @@ export const CurrentUser = createParamDecorator((_data: unknown, ctx: ExecutionC
     return {
         userId: user?.sub,
         email: user?.email,
-        role: user?.role
+        role: user?.role,
+        isActive: user?.isActive
     }
 })
