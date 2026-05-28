@@ -70,7 +70,12 @@ export class TokenService {
             role: payload.role,
             isActive: payload.isActive
         })
-        return newTokens
+        return {
+            ...newTokens,
+            id: userId,
+            email: payload.email,
+            role: payload.role
+        }
     }
 
     async revokeRefreshToken(refreshToken: string) {

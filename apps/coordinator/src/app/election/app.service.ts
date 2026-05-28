@@ -7,6 +7,8 @@ import {
     CandidateIdsDto,
     CreateElectionDto,
     FilterElectionsDto,
+    GetElectionsByUserIdDto,
+    GetMyElectionAllInfoDto,
     GetVoterInElectionDto,
     VoterIdsDto
 } from '@libs/types/coordinator/election.dto'
@@ -547,6 +549,24 @@ export class AppService {
         return { ...election, candidates: candidates ?? [], voters: voters ?? [] }
     }
 
+    async getMyElectionAllInfo(dto: GetMyElectionAllInfoDto) {
+        const [election, myVote] = await Promise.all([
+            this.getElectionAllInfo({ id: dto.electionId }),
+            this.prisma.vote.findUnique({
+                where: {
+                    electionId_voterId: {
+                        electionId: dto.electionId,
+                        voterId: dto.voterId
+                    }
+                }
+            })
+        ])
+
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { voters: _voters, ...voterSafeElection } = election ?? {}
+        return { ...voterSafeElection, vote: myVote ?? null }
+    }
+
     async getVoterInElection(dto: GetVoterInElectionDto) {
         //SECTION - Kiểm tra election có tồn tại không
         const election = await this.getElectionById({ id: dto.electionId })
@@ -587,32 +607,60 @@ export class AppService {
         }
     }
 
-    async getElectionsByVoterId(voterId: MongoIdDto) {
+    async getElectionsByVoterId(dto: GetElectionsByUserIdDto) {
         try {
             const electionVoters = await this.prisma.electionVoter.findMany({
-                where: { voterId: voterId.id },
-                select: { election: true }
+                where: removeUndefinedObj({ voterId: dto.userId, election: { status: dto.status } }),
+                select: { election: true, votes: true },
+                orderBy: { election: { updatedAt: 'desc' } }
             })
+            console.log('🚀 ~ AppService ~ getElectionsByVoterId ~ electionVoters:', electionVoters)
 
-            return electionVoters.map((ev) => ev.election)
+            return electionVoters.map((ev) => ({ ...ev.election, vote: ev.votes[0] ?? null }))
         } catch (e) {
             handlePrismaError(e)
         }
     }
 
-    async getElectionsByCandidateId(candidateId: MongoIdDto) {
+    async getElectionsByCandidateId(dto: GetElectionsByUserIdDto) {
         try {
             const elections = await this.prisma.election.findMany({
-                where: {
+                where: removeUndefinedObj({
                     candidateIds: {
-                        has: candidateId.id
-                    }
-                }
+                        has: dto.userId
+                    },
+                    status: dto.status
+                }),
+                orderBy: { updatedAt: 'desc' }
             })
 
             return elections
         } catch (e) {
             handlePrismaError(e)
+        }
+    }
+
+    async getElectionCountByVoterId(dto: MongoIdDto) {
+        const statuses = [
+            ElectionStatus.PENDING,
+            ElectionStatus.ACTIVE,
+            ElectionStatus.CLOSED,
+            ElectionStatus.COMPLETED
+        ]
+
+        const counts = await Promise.all(
+            statuses.map((status) =>
+                this.prisma.electionVoter.count({
+                    where: { voterId: dto.id, election: { status } }
+                })
+            )
+        )
+
+        return {
+            pending: counts[0],
+            active: counts[1],
+            closed: counts[2],
+            completed: counts[3]
         }
     }
 

@@ -6,8 +6,10 @@ import {
     GetVoterInElectionDto,
     CreateElectionDto,
     FilterElectionsDto,
+    GetMyElectionAllInfoDto,
     VoterIdsDto,
-    CandidateIdsDto
+    CandidateIdsDto,
+    GetElectionsByUserIdDto
 } from '@libs/types/coordinator/election.dto'
 import { MongoIdDto } from '@libs/types/common.dto'
 
@@ -71,17 +73,27 @@ export class AppController {
     }
 
     @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTIONS_BY_VOTER_ID)
-    async getElectionsByVoterId(@Payload() dto: MongoIdDto) {
+    async getElectionsByVoterId(@Payload() dto: GetElectionsByUserIdDto) {
         return await this.appService.getElectionsByVoterId(dto)
     }
 
     @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTIONS_BY_CANDIDATE_ID)
-    async getElectionsByCandidateId(@Payload() dto: MongoIdDto) {
+    async getElectionsByCandidateId(@Payload() dto: GetElectionsByUserIdDto) {
         return await this.appService.getElectionsByCandidateId(dto)
     }
 
     @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTION_ALL_INFO)
     async getElectionAllInfo(@Payload() dto: MongoIdDto) {
         return await this.appService.getElectionAllInfo(dto)
+    }
+
+    @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.GET_MY_ELECTION_ALL_INFO)
+    async getMyElectionAllInfo(@Payload() dto: GetMyElectionAllInfoDto) {
+        return await this.appService.getMyElectionAllInfo(dto)
+    }
+
+    @MessagePattern(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTION_COUNT_BY_VOTER_ID)
+    async getElectionCountByVoterId(@Payload() dto: MongoIdDto) {
+        return await this.appService.getElectionCountByVoterId(dto)
     }
 }

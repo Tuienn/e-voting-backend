@@ -82,7 +82,7 @@ export class AppService {
             data: (Pick<Vote, 'id' | 'electionId' | 'voterId' | 'blindedCommitment' | 'blockchainRef' | 'createdAt'> & {
                 voter: { id: string; email: string; name: string } | null
             })[]
-        } & PaginationMeta
+        } & PaginationMeta & { totalVoters: number }
     > {
         const { electionId, voterId, startDate, endDate, page = 0, pageSize = 10 } = dto ?? {}
         const voteSelect = {

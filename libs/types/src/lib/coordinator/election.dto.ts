@@ -19,6 +19,7 @@ import {
 import { PaginationQueryDto } from '../common.dto'
 import { ElectionStatus } from './election.type'
 import { IsMongoIdArray } from '../share-decorator/is-mongo-id-array.decorator'
+import { OmitType } from '@nestjs/swagger'
 
 export class CreateElectionDto {
     @IsDefined({ message: missingDataField('name') })
@@ -81,3 +82,19 @@ export class GetVoterInElectionDto {
     @IsMongoId({ message: invalidDataField('voterId', 'MongoDB ObjectId') })
     voterId: string
 }
+
+export class GetMyElectionAllInfoDto extends GetVoterInElectionDto {}
+
+export class GetElectionsByUserIdDto {
+    @IsDefined({ message: missingDataField('userId') })
+    @IsMongoId({ message: invalidDataField('userId', 'MongoDB ObjectId') })
+    userId: string
+
+    @IsOptional()
+    @IsEnum(['PENDING', 'ACTIVE', 'CLOSED', 'COMPLETED'], {
+        message: invalidDataField('status', 'PENDING | ACTIVE | CLOSED | COMPLETED')
+    })
+    status?: ElectionStatus
+}
+
+export class GetElectionsByUserIdQueryDto extends OmitType(GetElectionsByUserIdDto, ['userId']) {}

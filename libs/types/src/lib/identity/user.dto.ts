@@ -21,6 +21,7 @@ import {
 import { PaginationQueryDto } from '../common.dto'
 import { Transform, Type } from 'class-transformer'
 import { Role } from './auth.type'
+import {} from '@nestjs/swagger'
 
 export class CreateUserDto {
     @IsDefined({ message: missingDataField('email') })

@@ -10,13 +10,14 @@
     - 5.1 [Đăng nhập & xác thực](#51-đăng-nhập--xác-thực)
     - 5.2 [Quản lý người dùng (ADMIN)](#52-quản-lý-người-dùng-admin)
     - 5.3 [Tạo cuộc bầu cử](#53-tạo-cuộc-bầu-cử)
-    - 5.4 [Thêm cử tri vào cuộc bầu cử](#54-thêm-cử-tri-vào-cuộc-bầu-cử)
-    - 5.5 [Bắt đầu cuộc bầu cử (Start Election)](#55-bắt-đầu-cuộc-bầu-cử-start-election)
-    - 5.6 [Quy trình bỏ phiếu mù (Blind Voting)](#56-quy-trình-bỏ-phiếu-mù-blind-voting)
-    - 5.7 [Đóng cuộc bầu cử (Close Election)](#57-đóng-cuộc-bầu-cử-close-election)
-    - 5.8 [Giải mù phiếu bầu (Reveal Vote)](#58-giải-mù-phiếu-bầu-reveal-vote)
-    - 5.9 [Xác minh phiếu bầu (Verify Vote)](#59-xác-minh-phiếu-bầu-verify-vote)
-    - 5.10 [Xem kết quả bầu cử (Tally Result)](#510-xem-kết-quả-bầu-cử-tally-result)
+    - 5.4 [Thêm / xóa ứng viên (PENDING)](#54-thêm--xóa-ứng-viên-khỏi-cuộc-bầu-cử-pending)
+    - 5.5 [Thêm / xóa cử tri (PENDING)](#55-thêm--xóa-cử-tri-khỏi-cuộc-bầu-cử-pending)
+    - 5.6 [Bắt đầu cuộc bầu cử (Start Election)](#56-bắt-đầu-cuộc-bầu-cử-start-election)
+    - 5.7 [Quy trình bỏ phiếu mù (Blind Voting)](#57-quy-trình-bỏ-phiếu-mù-blind-voting)
+    - 5.8 [Đóng cuộc bầu cử (Close Election)](#58-đóng-cuộc-bầu-cử-close-election)
+    - 5.9 [Giải mù phiếu bầu (Reveal Vote)](#59-giải-mù-phiếu-bầu-reveal-vote)
+    - 5.10 [Xác minh phiếu bầu (Verify Vote)](#510-xác-minh-phiếu-bầu-verify-vote)
+    - 5.11 [Xem kết quả bầu cử (Tally Result)](#511-xem-kết-quả-bầu-cử-tally-result)
 6. [Giao tiếp với Chainlaunch (Hyperledger Fabric)](#6-giao-tiếp-với-chainlaunch-hyperledger-fabric)
 7. [Bảo mật & chống gian lận](#7-bảo-mật--chống-gian-lận)
 8. [Thư viện dùng chung (libs)](#8-thư-viện-dùng-chung-libs)
@@ -109,21 +110,28 @@ Tất cả giao tiếp nội bộ dùng `@MessagePattern` + `ClientProxy.send()`
 
 **Coordinator Message Patterns:**
 
-| Pattern                           | Sender                 | Receiver    | Mô tả                                 |
-| --------------------------------- | ---------------------- | ----------- | ------------------------------------- |
-| `election.filter_elections`       | BFF                    | Coordinator | Lọc / tìm kiếm danh sách election     |
-| `election.create_election`        | BFF                    | Coordinator | Tạo election mới                      |
-| `election.start_election`         | BFF                    | Coordinator | Bắt đầu election (sinh khóa, ACTIVE)  |
-| `election.end_election`           | BFF                    | Coordinator | Đóng election (Merkle root, CLOSED)   |
-| `election.complete_election`      | Reveal-Vote            | Coordinator | Hoàn thành election sau khi reveal đủ |
-| `election.get_election_by_id`     | BFF / Reveal-Vote      | Coordinator | Lấy chi tiết một election             |
-| `election.add_voters_to_election` | BFF                    | Coordinator | Thêm danh sách voter vào election     |
-| `election.get_voter_in_election`  | Coordinator (internal) | Coordinator | Kiểm tra voter thuộc election         |
-| `vote.start_vote_session`         | BFF                    | Coordinator | Khởi tạo phiên bỏ phiếu               |
-| `vote.sign_blinded_vote`          | BFF                    | Coordinator | Điều phối ký phiếu mù tập thể         |
-| `vote.submit_blinded_commitment`  | BFF                    | Coordinator | Nộp phiếu mù đã ký lên chain + DB     |
-| `vote.get_vote_count`             | Reveal-Vote            | Coordinator | Đếm tổng số phiếu đã nộp              |
-| `vote.verify_vote`                | BFF                    | Coordinator | Xác minh phiếu bầu đa tầng            |
+| Pattern                                    | Sender                 | Receiver    | Mô tả                                     |
+| ------------------------------------------ | ---------------------- | ----------- | ----------------------------------------- |
+| `election.filter_elections`                | BFF                    | Coordinator | Lọc / tìm kiếm danh sách election         |
+| `election.create_election`                 | BFF                    | Coordinator | Tạo election mới                          |
+| `election.start_election`                  | BFF                    | Coordinator | Bắt đầu election (sinh khóa, ACTIVE)      |
+| `election.end_election`                    | BFF                    | Coordinator | Đóng election (Merkle root, CLOSED)       |
+| `election.complete_election`               | Reveal-Vote            | Coordinator | Hoàn thành election sau khi reveal đủ     |
+| `election.get_election_by_id`              | BFF / Reveal-Vote      | Coordinator | Lấy chi tiết một election                 |
+| `election.get_election_all_info`           | BFF                    | Coordinator | Lấy chi tiết đầy đủ election (kèm voters) |
+| `election.add_candidates_to_election`      | BFF                    | Coordinator | Thêm danh sách ứng viên vào election      |
+| `election.delete_candidates_from_election` | BFF                    | Coordinator | Xóa danh sách ứng viên khỏi election      |
+| `election.add_voters_to_election`          | BFF                    | Coordinator | Thêm danh sách voter vào election         |
+| `election.delete_voters_from_election`     | BFF                    | Coordinator | Xóa danh sách voter khỏi election         |
+| `election.get_voter_in_election`           | Coordinator (internal) | Coordinator | Kiểm tra voter thuộc election             |
+| `election.get_elections_by_voter_id`       | BFF                    | Coordinator | Lấy danh sách election của một voter      |
+| `election.get_elections_by_candidate_id`   | BFF                    | Coordinator | Lấy danh sách election của một candidate  |
+| `vote.start_vote_session`                  | BFF                    | Coordinator | Khởi tạo phiên bỏ phiếu                   |
+| `vote.sign_blinded_vote`                   | BFF                    | Coordinator | Điều phối ký phiếu mù tập thể             |
+| `vote.submit_blinded_commitment`           | BFF                    | Coordinator | Nộp phiếu mù đã ký lên chain + DB         |
+| `vote.get_vote_count`                      | Reveal-Vote            | Coordinator | Đếm tổng số phiếu đã nộp                  |
+| `vote.filter_votes`                        | BFF                    | Coordinator | Lọc danh sách phiếu trong election        |
+| `vote.verify_vote`                         | BFF                    | Coordinator | Xác minh phiếu bầu đa tầng                |
 
 **Signing Node Message Patterns:**
 
@@ -319,23 +327,48 @@ Body: { refreshToken }
 → BFF → Identity → verify refresh token → phát accessToken mới
 ```
 
+**Lấy hồ sơ của người dùng đang đăng nhập:**
+
+```
+GET /api/v1/identity/auth/me
+Header: Authorization: Bearer <accessToken>
+```
+
+```
+Client
+  │ GET /api/v1/identity/auth/me
+  ▼
+BFF
+  │ AuthenticatorGuard verify accessToken → { userId, role }
+  │ TCP send → user.get_user_by_id { id: userId }
+  ▼
+Identity
+  │ users.findUnique({ id: userId })
+  │ Trả thông tin user (omit password)
+  ▼
+BFF → Client: 200 OK + { id, email, name, role, isActive, ... }
+```
+
+> Endpoint dành cho cả `ADMIN` và `VOTER` / `CANDIDATE`: bất kỳ user đã xác thực JWT đều có quyền xem hồ sơ của chính mình. BFF lấy `userId` từ JWT trong `AuthenticatorGuard`, không cho phép truyền tham số từ client.
+
 ---
 
 ### 5.2 Quản lý người dùng (ADMIN)
 
 Tất cả API yêu cầu role `ADMIN`. BFF nhận HTTP rồi forward qua TCP đến Identity.
 
-| HTTP Endpoint                           | TCP Pattern               | Mô tả                            |
-| --------------------------------------- | ------------------------- | -------------------------------- |
-| `POST /identity/user/create-user`       | `user.create_user`        | Tạo 1 user, bcrypt hash password |
-| `POST /identity/user/create-bulk-users` | `user.create_bulk_users`  | Bulk create, trả `{ count }`     |
-| `DELETE /identity/user/bulk`            | `user.delete_bulk_users`  | Bulk delete theo IDs             |
-| `GET /identity/user/filter`             | `user.filter_users`       | Tìm kiếm paginated               |
-| `GET /identity/user/:id`                | `user.get_user_by_id`     | Lấy thông tin 1 user             |
-| `PATCH /identity/user/:id`              | `user.update_user_by_id`  | Cập nhật email, name, role       |
-| `PATCH /identity/user/:id/disable`      | `user.disable_user_by_id` | isActive = false                 |
-| `PATCH /identity/user/:id/enable`       | `user.enable_user_by_id`  | isActive = true                  |
-| `DELETE /identity/user/:id`             | `user.delete_user_by_id`  | Xóa user                         |
+| HTTP Endpoint                           | TCP Pattern               | Mô tả                                             |
+| --------------------------------------- | ------------------------- | ------------------------------------------------- |
+| `POST /identity/user/create-user`       | `user.create_user`        | Tạo 1 user, bcrypt hash password                  |
+| `POST /identity/user/create-bulk-users` | `user.create_bulk_users`  | Bulk create, trả `{ count }`                      |
+| `DELETE /identity/user/bulk`            | `user.delete_bulk_users`  | Bulk delete theo IDs                              |
+| `GET /identity/user/filter`             | `user.filter_users`       | Tìm kiếm paginated                                |
+| `GET /identity/user/:id`                | `user.get_user_by_id`     | Lấy thông tin 1 user                              |
+| `GET /identity/user/:id/all`            | (BFF aggregate)           | Lấy thông tin user + danh sách election liên quan |
+| `PATCH /identity/user/:id`              | `user.update_user_by_id`  | Cập nhật email, name, role                        |
+| `PATCH /identity/user/:id/disable`      | `user.disable_user_by_id` | isActive = false                                  |
+| `PATCH /identity/user/:id/enable`       | `user.enable_user_by_id`  | isActive = true                                   |
+| `DELETE /identity/user/:id`             | `user.delete_user_by_id`  | Xóa user                                          |
 
 ---
 
@@ -366,16 +399,48 @@ BFF → Client: 201 Created
 
 ---
 
-### 5.4 Thêm cử tri vào cuộc bầu cử
+### 5.4 Thêm / xóa ứng viên khỏi cuộc bầu cử (PENDING)
 
 ```
-POST /api/v1/coordinator/election/:id/add-voters
+POST   /api/v1/coordinator/election/:id/add-candidates
+DELETE /api/v1/coordinator/election/:id/delete-candidates
 Roles: ADMIN
-Body: { voterIds: ["id1", ...] }
+Body:  { candidateIds: ["id1", ...] }
+```
+
+```
+BFF → TCP send: election.add_candidates_to_election { id, candidateIds }
+             / election.delete_candidates_from_election { id, candidateIds }
+  ▼
+Coordinator
+  │ Kiểm tra election.status = PENDING
+  │ TCP send: user.get_users_by_ids { ids: candidateIds, role: "CANDIDATE" }
+  ▼
+Identity → trả danh sách candidate users
+  ▼
+Coordinator
+  │ Kiểm tra tất cả IDs tồn tại, role = CANDIDATE, isActive = true
+  │ Thêm: append candidateIds vào election.candidateIds (bỏ qua trùng)
+  │ Xóa:  loại candidateIds khỏi election.candidateIds
+  │ Trả election đã cập nhật
+  ▼
+BFF → Client: 201 Created / 200 OK
+```
+
+---
+
+### 5.5 Thêm / xóa cử tri khỏi cuộc bầu cử (PENDING)
+
+```
+POST   /api/v1/coordinator/election/:id/add-voters
+DELETE /api/v1/coordinator/election/:id/delete-voters
+Roles: ADMIN
+Body:  { voterIds: ["id1", ...] }
 ```
 
 ```
 BFF → TCP send: election.add_voters_to_election { id, voterIds }
+             / election.delete_voters_from_election { id, voterIds }
   ▼
 Coordinator
   │ Kiểm tra election.status = PENDING
@@ -385,17 +450,20 @@ Identity → trả danh sách voter users
   ▼
 Coordinator
   │ Kiểm tra tất cả IDs tồn tại, role = VOTER, isActive = true
-  │ Transaction:
+  │ Thêm — Transaction:
   │   Re-validate status = PENDING (chống race condition)
   │   createMany ElectionVoter { electionId, voterId }
+  │ Xóa — Transaction:
+  │   Re-validate status = PENDING
+  │   deleteMany ElectionVoter { electionId, voterId IN voterIds }
   │ Trả election + electionVoters
   ▼
-BFF → Client: 200 OK
+BFF → Client: 201 Created / 200 OK
 ```
 
 ---
 
-### 5.5 Bắt đầu cuộc bầu cử (Start Election)
+### 5.6 Bắt đầu cuộc bầu cử (Start Election)
 
 Bước này **sinh khóa EC-Schnorr tập thể** cho election.
 
@@ -442,7 +510,7 @@ BFF → Client: 200 OK + election data
 
 ---
 
-### 5.6 Quy trình bỏ phiếu mù (Blind Voting)
+### 5.7 Quy trình bỏ phiếu mù (Blind Voting)
 
 Gồm **3 request API** riêng biệt. Giữa các bước, client thực hiện phép toán mật mã trong browser.
 
@@ -604,7 +672,7 @@ BFF → Client: 200 OK + { voteId, blindedCommitment, blockchainRef, ... }
 
 ---
 
-### 5.7 Đóng cuộc bầu cử (Close Election)
+### 5.8 Đóng cuộc bầu cử (Close Election)
 
 ```
 PATCH /api/v1/coordinator/election/:id/close
@@ -648,7 +716,7 @@ BFF → Client: 200 OK
 
 ---
 
-### 5.8 Giải mù phiếu bầu (Reveal Vote)
+### 5.9 Giải mù phiếu bầu (Reveal Vote)
 
 Sau khi election đóng, voter gửi chữ ký Schnorr đã unblind lên endpoint **ẩn danh**.
 
@@ -718,7 +786,7 @@ Client: 200 OK
 
 ---
 
-### 5.9 Xác minh phiếu bầu (Verify Vote)
+### 5.10 Xác minh phiếu bầu (Verify Vote)
 
 ```
 POST /api/v1/coordinator/vote/:voteId/verify
@@ -771,7 +839,7 @@ BFF → Client: chi tiết kết quả từng bước
 
 ---
 
-### 5.10 Xem kết quả bầu cử (Tally Result)
+### 5.11 Xem kết quả bầu cử (Tally Result)
 
 ```
 GET http://localhost:3308/reveal-vote/:electionId/tally

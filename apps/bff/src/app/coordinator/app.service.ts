@@ -3,9 +3,10 @@ import {
     CandidateIdsDto,
     CreateElectionDto,
     FilterElectionsDto,
+    GetElectionsByUserIdDto,
     VoterIdsDto
 } from '@libs/types/coordinator/election.dto'
-import { Inject, Injectable, NotFoundException } from '@nestjs/common'
+import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common'
 import { CONFIGURATION } from '../../configuration'
 import { ClientProxy } from '@nestjs/microservices'
 import { COORDINATOR_MESSAGE_PATTERNS, IDENTITY_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
@@ -54,8 +55,34 @@ export class AppService {
         return lastValueFrom(this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.DELETE_VOTERS_FROM_ELECTION, dto))
     }
 
-    async getElectionsByVoterId(dto: MongoIdDto) {
+    async getElectionsByVoterId(dto: GetElectionsByUserIdDto) {
         return lastValueFrom(this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTIONS_BY_VOTER_ID, dto))
+    }
+
+    async getMyElections(dto: GetElectionsByUserIdDto) {
+        return this.getElectionsByVoterId(dto)
+    }
+
+    async getElectionCountByVoterId(dto: MongoIdDto) {
+        return lastValueFrom(
+            this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTION_COUNT_BY_VOTER_ID, dto)
+        )
+    }
+
+    async getMyElectionAllInfo(dto: MongoIdDto & { voterId: string }) {
+        const elections = await this.getElectionsByVoterId({ userId: dto.voterId })
+        const hasAccess = Array.isArray(elections) && elections.some((election: any) => election.id === dto.id)
+
+        if (!hasAccess) {
+            throw new ForbiddenException('Voter is not allowed to access this election')
+        }
+
+        return lastValueFrom(
+            this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.GET_MY_ELECTION_ALL_INFO, {
+                electionId: dto.id,
+                voterId: dto.voterId
+            })
+        )
     }
 
     async startElection(dto: MongoIdDto) {
@@ -82,7 +109,7 @@ export class AppService {
         return lastValueFrom(this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTION_ALL_INFO, dto))
     }
 
-    async getElectionsByCandidateId(dto: MongoIdDto) {
+    async getElectionsByCandidateId(dto: GetElectionsByUserIdDto) {
         return lastValueFrom(
             this.coordinatorClient.send(COORDINATOR_MESSAGE_PATTERNS.GET_ELECTIONS_BY_CANDIDATE_ID, dto)
         )

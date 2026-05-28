@@ -5,6 +5,7 @@ import {
     CandidateIdsDto,
     CreateElectionDto,
     FilterElectionsDto,
+    GetElectionsByUserIdQueryDto,
     VoterIdsDto
 } from '@libs/types/coordinator/election.dto'
 import { Public } from '@libs/decorators/public.decorator'
@@ -130,12 +131,62 @@ export class AppController {
         description: 'Voter ID',
         examples: { example1: { value: '69f5b5475c48c621a0681cbc' } }
     })
-    async getElectionsByVoterId(@Param() dto: MongoIdDto) {
-        const result = await this.appService.getElectionsByVoterId(dto)
+    @ApiQuery({ name: 'status', required: false, type: String })
+    async getElectionsByVoterId(@Param() dto: MongoIdDto, @Query() queryDto: GetElectionsByUserIdQueryDto) {
+        const result = await this.appService.getElectionsByVoterId({
+            userId: dto.id,
+            status: queryDto.status
+        })
 
         return new ResponseDto({
             data: result,
             message: 'Elections retrieved successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Roles('VOTER')
+    @Get('election/me/count')
+    async getMyElectionCount(@CurrentUser() user: RequestWithUser) {
+        const result = await this.appService.getElectionCountByVoterId({ id: user.userId })
+
+        return new ResponseDto({
+            data: result,
+            message: 'Election count retrieved successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Roles('VOTER')
+    @Get('election/me')
+    @ApiQuery({ name: 'status', required: false, type: String })
+    async getMyElections(@CurrentUser() user: RequestWithUser, @Query() queryDto: GetElectionsByUserIdQueryDto) {
+        const result = await this.appService.getMyElections({
+            userId: user.userId,
+            status: queryDto.status
+        })
+
+        return new ResponseDto({
+            data: result,
+            message: 'Elections retrieved successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Roles('VOTER')
+    @Get('election/me/:id')
+    @ApiParam({
+        name: 'id',
+        type: String,
+        description: 'Election ID',
+        examples: { example1: { value: '69f5b5475c48c621a0681cbc' } }
+    })
+    async getMyElectionAllInfo(@Param() dto: MongoIdDto, @CurrentUser() user: RequestWithUser) {
+        const result = await this.appService.getMyElectionAllInfo({ id: dto.id, voterId: user.userId })
+
+        return new ResponseDto({
+            data: result,
+            message: 'Election info retrieved successfully',
             statusCode: HttpStatus.OK
         })
     }
@@ -148,8 +199,12 @@ export class AppController {
         description: 'Candidate ID',
         examples: { example1: { value: '69f5b5475c48c621a0681cbc' } }
     })
-    async getElectionsByCandidateId(@Param() dto: MongoIdDto) {
-        const result = await this.appService.getElectionsByCandidateId(dto)
+    @ApiQuery({ name: 'status', required: false, type: String })
+    async getElectionsByCandidateId(@Param() dto: MongoIdDto, @Query() queryDto: GetElectionsByUserIdQueryDto) {
+        const result = await this.appService.getElectionsByCandidateId({
+            userId: dto.id,
+            status: queryDto.status
+        })
 
         return new ResponseDto({
             data: result,
