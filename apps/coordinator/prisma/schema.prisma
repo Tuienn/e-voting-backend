@@ -66,15 +66,15 @@ model Vote {
   electionId String   @db.ObjectId
   election   Election @relation(fields: [electionId], references: [id])
 
-  voterId String        @db.ObjectId
-  voter   ElectionVoter @relation(fields: [voterId], references: [id])
+  voterId String @db.ObjectId
+  voter ElectionVoter @relation(fields: [electionId, voterId], references: [electionId, voterId])
 
   blindedCommitment String
   blockchainRef     String
 
   createdAt DateTime @default(now())
 
-  @@unique([electionId, voterId])
+  @@unique([electionId, voterId]) //mỗi voter chỉ vote 1 lần cho 1 election
   @@unique([electionId, blindedCommitment]) //đảm bảo không có 2 vote nào có blindedCommitment giống nhau trong cùng 1 election
   @@index([electionId, createdAt]) //lấy votes của election X, sort theo thời gian tạo
   @@map("votes")

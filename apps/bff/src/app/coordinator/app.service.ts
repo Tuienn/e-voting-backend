@@ -74,7 +74,7 @@ export class AppService {
         const hasAccess = Array.isArray(elections) && elections.some((election: any) => election.id === dto.id)
 
         if (!hasAccess) {
-            throw new ForbiddenException('Voter is not allowed to access this election')
+            throw new ForbiddenException('Election not found or voter is not allowed to access this election')
         }
 
         return lastValueFrom(

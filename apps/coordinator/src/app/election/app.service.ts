@@ -423,10 +423,12 @@ export class AppService {
 
             const leaves = commitmentVotes.map((cv) => cv.blindedCommitment)
             const { root } = buildCommitmentMerkleTree(leaves)
+            console.log('🚀 ~ AppService ~ closeElection ~ root:', root)
 
             //SECTION - Commit merkle lên blockchain — ngoài transaction (~2s)
             //NOTE - Trade-off cần lưu ý: Nếu có concurrent call closeElection trong window 2s đó, cả hai đều gọi fabric ->check trong chaincode->reject
             const fabricRes = await this.fabricClient.commitMerkleRoot(dto.id, root, leaves.length)
+            console.log('🚀 ~ AppService ~ closeElection ~ fabricRes:', fabricRes)
 
             //SECTION - Commit — transaction ngắn, chỉ re-validate + write
             const updatedElection = await this.prisma.$transaction(async (tx) => {
@@ -614,7 +616,6 @@ export class AppService {
                 select: { election: true, votes: true },
                 orderBy: { election: { updatedAt: 'desc' } }
             })
-            console.log('🚀 ~ AppService ~ getElectionsByVoterId ~ electionVoters:', electionVoters)
 
             return electionVoters.map((ev) => ({ ...ev.election, vote: ev.votes[0] ?? null }))
         } catch (e) {
