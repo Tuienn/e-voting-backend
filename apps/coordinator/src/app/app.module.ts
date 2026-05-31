@@ -14,6 +14,7 @@ import { HttpToRpcExceptionInterceptor } from '@libs/interceptors/http-to-rpc-ex
 import { ElectionModule } from './election/app.module'
 import { PrismaModule } from '../infrastructure/prisma/prisma.module'
 import { VoteModule } from './vote/app.module'
+import { ReconcilerModule } from './reconciler/app.module'
 
 @Module({
     imports: [
@@ -51,7 +52,8 @@ import { VoteModule } from './vote/app.module'
             orgId: CONFIGURATION.COORDINATOR_CONFIG.FABRIC_ORG_ID
         }),
         ElectionModule,
-        VoteModule
+        VoteModule,
+        ReconcilerModule
     ],
     providers: [
         {

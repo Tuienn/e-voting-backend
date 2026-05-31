@@ -121,6 +121,24 @@ export class FabricClientService implements OnModuleInit {
         }
     }
 
+    //NOTE - Query revealKey đã dùng trên chain. Dùng cho Case 2 (Option B): khi revealVote invoke fail,
+    // query này phân định chain đã có revealKey hay chưa để recover DB. GetUsedReveal KHÔNG trả txId.
+    async getUsedReveal(electionId: string, revealKey: string): Promise<QueryChaincodeResponse> {
+        try {
+            const response = await this.client.post(
+                `/sc/fabric/chaincodes/${this.options.chaincodeId}/query`,
+                this.genApiChaincodeBody('GetUsedReveal', [electionId, revealKey])
+            )
+
+            return response.data
+        } catch (error: any) {
+            return {
+                message: `Failed to get used reveal on chain: ${error.message}`,
+                result: ''
+            }
+        }
+    }
+
     async getAuditCounts(electionId: string): Promise<QueryChaincodeResponse> {
         try {
             const response = await this.client.post(

@@ -17,8 +17,14 @@ datasource db {
 enum ElectionStatus {
   PENDING
   ACTIVE
+  CLOSING // trạng thái trung gian: đã ghi DB, đang/đã commit Merkle root lên chain nhưng chưa confirm CLOSED
   CLOSED
   COMPLETED
+}
+
+enum VoteStatus {
+  PENDING_CHAIN // đã ghi DB, đang/đã submit lên chain nhưng chưa confirm
+  CONFIRMED // đã xác nhận có trên blockchain
 }
 
 model Election {
@@ -70,12 +76,16 @@ model Vote {
   voter ElectionVoter @relation(fields: [electionId, voterId], references: [electionId, voterId])
 
   blindedCommitment String
-  blockchainRef     String
+  // Write-DB-First: ghi record PENDING_CHAIN trước, blockchainRef set sau khi chain confirm → cho phép null khi chưa confirm
+  blockchainRef     String?
+  status            VoteStatus @default(PENDING_CHAIN)
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([electionId, voterId]) //mỗi voter chỉ vote 1 lần cho 1 election
   @@unique([electionId, blindedCommitment]) //đảm bảo không có 2 vote nào có blindedCommitment giống nhau trong cùng 1 election
   @@index([electionId, createdAt]) //lấy votes của election X, sort theo thời gian tạo
+  @@index([status, createdAt]) //reconciler quét các vote PENDING_CHAIN cũ
   @@map("votes")
 }

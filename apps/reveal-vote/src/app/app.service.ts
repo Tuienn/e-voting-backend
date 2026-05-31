@@ -119,17 +119,43 @@ export class AppService {
         //SECTION - Tính blindedVoteHash
         const revealKey = this.computeRevealKey(h, sPrime)
 
-        //SECTION - Kiểm tra blindedVoteHash có tồn tại trong db kchống anti-replay attack
+        //SECTION - Commit on chain trước (Option B: GIỮ thứ tự chain-first, không đổi)
+        const revealPayloadHash = computeRevealPayloadHash(dto.candidateId, dto.h, dto.sPrime)
+
+        let blockchainRef: string | null
         try {
-            //SECTION - Commit on chain
-            const revealPayloadHash = computeRevealPayloadHash(dto.candidateId, dto.h, dto.sPrime)
             const fabricRes = await this.fabricClient.revealVote(
                 dto.electionId,
                 dto.candidateId,
                 revealKey,
                 revealPayloadHash
             )
+            blockchainRef = fabricRes.result.transactionId
+        } catch (chainErr) {
+            //NOTE - Option B: revealVote invoke fail có thể là (a) lỗi thật, hoặc (b) retry sau partial-fail
+            // (lần trước chain ĐÃ ghi revealKey nhưng DB chưa kịp lưu → voter retry bị chain reject "revealKey already used").
+            // Query GetUsedReveal để phân định, chain là nguồn sự thật.
+            const usedRes = await this.fabricClient.getUsedReveal(dto.electionId, revealKey)
 
+            if (!usedRes.result) {
+                //NOTE - chain CHƯA có revealKey → đây là lỗi thật, ném tiếp
+                throw chainErr
+            }
+
+            //NOTE - chain ĐÃ có revealKey. Xác thực candidateId on-chain khớp request để không ghi nhầm phiếu.
+            const used = JSON.parse(usedRes.result)
+            if (used.candidateId !== dto.candidateId) {
+                throw new ConflictException('Reveal key already used for a different candidate on chain')
+            }
+
+            //NOTE - Recover: GetUsedReveal KHÔNG trả txId nên blockchainRef = null. Bước create bên dưới sẽ:
+            // - thành công nếu DB chưa có record (đúng ca partial-fail) → phiếu được phục hồi
+            // - ném P2002 nếu DB đã có (replay thật) → "This vote has already been revealed"
+            blockchainRef = null
+        }
+
+        //SECTION - Ghi DB chống anti-replay. @@unique([electionId, revealKey]) vừa chống replay vừa đảm bảo idempotent recovery.
+        try {
             //NOTE - revealedVote có @@unique([electionId, revealKey]) đã đảm bảo auto validate chống replay
             const revealedVote = await this.prisma.revealedVote.create({
                 data: {
@@ -140,7 +166,7 @@ export class AppService {
                         h: dto.h,
                         sPrime: dto.sPrime
                     },
-                    blockchainRef: fabricRes.result.transactionId
+                    blockchainRef
                 },
                 omit: {
                     signature: true

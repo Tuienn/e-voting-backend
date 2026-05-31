@@ -23,7 +23,7 @@ import {
     UnprocessableEntityException
 } from '@nestjs/common'
 import { PrismaService } from '../../infrastructure/prisma/prisma.service'
-import { Election, ElectionStatus } from '../../../generated/prisma/client'
+import { Election, ElectionStatus, VoteStatus } from '../../../generated/prisma/client'
 import { CONFIGURATION } from '../../configuration'
 import { ClientProxy } from '@nestjs/microservices'
 import { lastValueFrom } from 'rxjs'
@@ -424,26 +424,55 @@ export class AppService {
             const leaves = commitmentVotes.map((cv) => cv.blindedCommitment)
             const { root } = buildCommitmentMerkleTree(leaves)
 
-            //SECTION - Commit merkle lên blockchain — ngoài transaction (~2s)
-            //NOTE - Trade-off cần lưu ý: Nếu có concurrent call closeElection trong window 2s đó, cả hai đều gọi fabric ->check trong chaincode->reject
-            const fabricRes = await this.fabricClient.commitMerkleRoot(dto.id, root, leaves.length)
-
-            //SECTION - Commit — transaction ngắn, chỉ re-validate + write
-            const updatedElection = await this.prisma.$transaction(async (tx) => {
-                // Re-validate chống race condition (ai đó closeElection đồng thời)
+            //SECTION - Write-DB-First Step A: ACTIVE → CLOSING (trạng thái trung gian, ghi sẵn merkleRoot).
+            // CLOSING vừa là điểm phục hồi cho reconciler, vừa đóng vai trò "lock" chống closeElection đồng thời
+            // (call thứ hai sẽ thấy status ≠ ACTIVE và bị từ chối).
+            await this.prisma.$transaction(async (tx) => {
                 const current = await tx.election.findUniqueOrThrow({ where: { id: dto.id }, select: { status: true } })
                 if (current.status !== ElectionStatus.ACTIVE) {
                     throw new ConflictException('Only ACTIVE election can be closed')
                 }
 
-                return await tx.election.update({
+                await tx.election.update({
                     where: { id: dto.id },
-                    data: {
-                        status: ElectionStatus.CLOSED,
-                        merkleRoot: root,
-                        blockchainRef: fabricRes.result.transactionId
-                    }
+                    data: { status: ElectionStatus.CLOSING, merkleRoot: root }
                 })
+            })
+
+            //SECTION - Step B: Commit merkle lên blockchain (~2s), rồi phân định confirm/rollback
+            //NOTE - Trade-off cần lưu ý: Nếu có concurrent call closeElection trong window 2s đó, cả hai đều gọi fabric ->check trong chaincode->reject
+            let blockchainRef: string
+            let confirmedRoot = root
+            try {
+                const fabricRes = await this.fabricClient.commitMerkleRoot(dto.id, root, leaves.length)
+                blockchainRef = fabricRes.result.transactionId
+            } catch (chainErr) {
+                //NOTE - Invoke ném lỗi không chắc chain chưa commit (có thể lỗi response/network sau commit).
+                // Query GetMerkleRoot để phân định — chain là nguồn sự thật.
+                const chainMerkleRes = await this.fabricClient.getMerkleRoot(dto.id)
+
+                if (chainMerkleRes.result) {
+                    //NOTE - Root ĐÃ committed trên chain → recover txId + merkleRoot từ chain (GetMerkleRoot trả field txId)
+                    const chainMerkle = JSON.parse(chainMerkleRes.result)
+                    blockchainRef = chainMerkle.txId
+                    confirmedRoot = chainMerkle.merkleRoot ?? root
+                } else {
+                    //NOTE - Chain CHƯA commit → rollback CLOSING → ACTIVE (best-effort) để admin retry, rồi ném lỗi
+                    await this.prisma.election
+                        .update({ where: { id: dto.id }, data: { status: ElectionStatus.ACTIVE, merkleRoot: null } })
+                        .catch(() => undefined)
+                    throw chainErr
+                }
+            }
+
+            //SECTION - Step C: Confirm CLOSING → CLOSED + ghi blockchainRef
+            const updatedElection = await this.prisma.election.update({
+                where: { id: dto.id },
+                data: {
+                    status: ElectionStatus.CLOSED,
+                    merkleRoot: confirmedRoot,
+                    blockchainRef
+                }
             })
 
             //NOTE - vote.count sau transaction — an toàn vì election đã CLOSED, không nhận vote mới
@@ -552,12 +581,12 @@ export class AppService {
     async getMyElectionAllInfo(dto: GetMyElectionAllInfoDto) {
         const [election, myVote] = await Promise.all([
             this.getElectionAllInfo({ id: dto.electionId }),
-            this.prisma.vote.findUnique({
+            // Mặc định chỉ trả vote đã CONFIRMED (đã có trên blockchain); findFirst để lọc thêm theo status
+            this.prisma.vote.findFirst({
                 where: {
-                    electionId_voterId: {
-                        electionId: dto.electionId,
-                        voterId: dto.voterId
-                    }
+                    electionId: dto.electionId,
+                    voterId: dto.voterId,
+                    status: VoteStatus.CONFIRMED
                 }
             })
         ])
@@ -611,7 +640,8 @@ export class AppService {
         try {
             const electionVoters = await this.prisma.electionVoter.findMany({
                 where: removeUndefinedObj({ voterId: dto.userId, election: { status: dto.status } }),
-                select: { election: true, votes: true },
+                // Mặc định chỉ trả vote đã CONFIRMED (đã có trên blockchain)
+                select: { election: true, votes: { where: { status: VoteStatus.CONFIRMED } } },
                 orderBy: { election: { updatedAt: 'desc' } }
             })
 

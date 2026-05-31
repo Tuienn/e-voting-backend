@@ -43,7 +43,7 @@ import {
     pointToHex,
     scalarToHex
 } from '@libs/ec-schnorr'
-import { ElectionStatus } from '../../../generated/prisma/enums'
+import { ElectionStatus, VoteStatus } from '../../../generated/prisma/enums'
 import { computeCommitmentProof, FabricClientService, verifyCommitmentProof } from '@libs/fabric'
 import { removeUndefinedObj } from '@libs/utils/object.util'
 import { PaginationMeta } from '@libs/types/common.type'
@@ -81,7 +81,8 @@ export class AppService {
         const cached = await this.cacheManager.get<number>(`election:vote:count:${dto.id}`)
         if (cached !== null && cached !== undefined) return cached
 
-        return await this.prisma.vote.count({ where: { electionId: dto.id } })
+        //NOTE - Chỉ đếm vote đã CONFIRMED để khớp với stats.TotalVoteCount trên chain (PENDING_CHAIN chưa chắc đã lên chain)
+        return await this.prisma.vote.count({ where: { electionId: dto.id, status: VoteStatus.CONFIRMED } })
     }
 
     async filterVotes(dto: FilterVotesDto): Promise<
@@ -106,13 +107,13 @@ export class AppService {
         let total: number
 
         if (voterId) {
-            // Dùng đúng compound unique @@unique([electionId, voterId]); mỗi voter tối đa 1 vote trong 1 election.
-            const vote = await this.prisma.vote.findUnique({
+            // Mỗi voter tối đa 1 vote trong 1 election. Mặc định chỉ lấy vote đã CONFIRMED (đã có trên blockchain);
+            // dùng findFirst thay findUnique để lọc thêm theo status.
+            const vote = await this.prisma.vote.findFirst({
                 where: {
-                    electionId_voterId: {
-                        electionId,
-                        voterId
-                    }
+                    electionId,
+                    voterId,
+                    status: VoteStatus.CONFIRMED
                 },
                 select: voteSelect
             })
@@ -125,6 +126,8 @@ export class AppService {
         } else {
             const where = removeUndefinedObj({
                 electionId,
+                // Mặc định chỉ liệt kê vote đã CONFIRMED (đã có trên blockchain)
+                status: VoteStatus.CONFIRMED,
                 createdAt:
                     fromDate || toDate
                         ? removeUndefinedObj({
@@ -362,60 +365,93 @@ export class AppService {
         //SECTION - Kiểm tra election có đang active không để nhận vote
         await this.electionService.checkActiveElectionById({ id: dto.electionId })
 
+        //SECTION - Pre-generate voteId để dùng làm key nhất quán trên cả chain và DB
+        // voterId không dùng làm key on-chain để tránh link voter identity với vote record
+        const voteId = new ObjectId().toHexString()
+
+        //SECTION - Write-DB-First: ghi record trạng thái trung gian PENDING_CHAIN trước khi gọi chain.
+        // Unique constraint @@unique([electionId, voterId]) chặn double-vote ngay tại đây (trước cả khi đụng chain).
+        // Nếu DB fail ở bước này → chain chưa bị đụng → không lệch.
         try {
-            //SECTION - Pre-generate voteId để dùng làm key nhất quán trên cả chain và DB
-            // voterId không dùng làm key on-chain để tránh link voter identity với vote record
-            const voteId = new ObjectId().toHexString()
-
-            //SECTION - Gửi blinded commitment đến Fabric để submit vote lên blockchain
-            const fabricRes = await this.fabricClientService.submitVote(
-                dto.electionId,
-                voteId,
-                dto.blindedCommitment.toLowerCase()
-            )
-
-            //SECTION - Lưu vote vào database, dùng transactionId từ Fabric làm reference để audit sau này
-            const vote = await this.prisma.vote.create({
+            await this.prisma.vote.create({
                 data: {
                     id: voteId,
                     electionId: dto.electionId,
                     voterId: dto.voterId,
                     blindedCommitment: dto.blindedCommitment,
-                    blockchainRef: fabricRes.result.transactionId
+                    status: VoteStatus.PENDING_CHAIN
+                    // blockchainRef để null cho tới khi chain confirm
                 }
             })
-
-            await this.cacheManager.set(
-                `session:signed:${dto.voterId}`,
-                {
-                    ...existSession,
-                    voted: true
-                },
-                CONFIGURATION.COORDINATOR_CONFIG.REDIS_SESSION_CACHE_TTL
-            )
-
-            //NOTE - Publish event realtime tới socket gateway qua Redis Pub/Sub (fire-and-forget, không await, lỗi broker không làm hỏng luồng vote và không tạo unhandled rejection)
-            // Không gửi voterId để giữ tính ẩn danh trên socket mở
-            this.eventBus
-                .emit(SOCKET_EVENT_PATTERNS.VOTE_COMMITTED, {
-                    electionId: dto.electionId,
-                    blockchainRef: vote.blockchainRef,
-                    createdAt: vote.createdAt
-                })
-                .subscribe({
-                    error: (err) =>
-                        this.logger.error(`Emit ${SOCKET_EVENT_PATTERNS.VOTE_COMMITTED} failed: ${err?.message}`)
-                })
-
-            return vote
         } catch (e) {
             handlePrismaError(e, [{ code: 'P2002', message: 'Voter already voted in this election' }])
         }
+
+        //SECTION - Submit blinded commitment lên Fabric, rồi phân định kết quả để confirm/rollback DB
+        let blockchainRef: string
+        try {
+            const fabricRes = await this.fabricClientService.submitVote(
+                dto.electionId,
+                voteId,
+                dto.blindedCommitment.toLowerCase()
+            )
+            blockchainRef = fabricRes.result.transactionId
+        } catch (chainErr) {
+            //NOTE - Invoke ném lỗi không có nghĩa chắc chắn chain không ghi (có thể lỗi response/network sau khi commit).
+            // Query GetVote để phân định: chain là nguồn sự thật.
+            const chainVoteRes = await this.fabricClientService.getVote(dto.electionId, voteId)
+
+            if (chainVoteRes.result) {
+                //NOTE - Vote ĐÃ lên chain → coi như thành công, recover blockchainRef từ field txId của GetVote
+                blockchainRef = JSON.parse(chainVoteRes.result).txId
+            } else {
+                //NOTE - Chain CHƯA có vote → rollback record PENDING (best-effort), trả lỗi để voter retry
+                await this.prisma.vote.delete({ where: { id: voteId } }).catch((err) => {
+                    this.logger.error(`Rollback pending vote ${voteId} failed: ${err?.message}`)
+                })
+                throw chainErr
+            }
+        }
+
+        //SECTION - Confirm DB: chuyển PENDING_CHAIN → CONFIRMED và ghi blockchainRef để audit sau này
+        const vote = await this.prisma.vote.update({
+            where: { id: voteId },
+            data: {
+                status: VoteStatus.CONFIRMED,
+                blockchainRef
+            }
+        })
+
+        await this.cacheManager.set(
+            `session:signed:${dto.voterId}`,
+            {
+                ...existSession,
+                voted: true
+            },
+            CONFIGURATION.COORDINATOR_CONFIG.REDIS_SESSION_CACHE_TTL
+        )
+
+        //NOTE - Publish event realtime tới socket gateway qua Redis Pub/Sub (fire-and-forget, không await, lỗi broker không làm hỏng luồng vote và không tạo unhandled rejection)
+        // Không gửi voterId để giữ tính ẩn danh trên socket mở
+        this.eventBus
+            .emit(SOCKET_EVENT_PATTERNS.VOTE_COMMITTED, {
+                electionId: dto.electionId,
+                blockchainRef: vote.blockchainRef,
+                createdAt: vote.createdAt
+            })
+            .subscribe({
+                error: (err) =>
+                    this.logger.error(`Emit ${SOCKET_EVENT_PATTERNS.VOTE_COMMITTED} failed: ${err?.message}`)
+            })
+
+        return vote
     }
 
     async getCommitmentVotesByElectionId(dto: MongoIdDto) {
+        //NOTE - Chỉ lấy vote đã CONFIRMED để build/verify Merkle tree khớp với những gì thực sự có trên chain.
+        // Vote PENDING_CHAIN (chưa confirm) bị loại để Merkle root không lệch giữa DB và blockchain.
         return await this.prisma.vote.findMany({
-            where: { electionId: dto.id },
+            where: { electionId: dto.id, status: VoteStatus.CONFIRMED },
             orderBy: { createdAt: 'asc' },
             select: { blindedCommitment: true }
         })

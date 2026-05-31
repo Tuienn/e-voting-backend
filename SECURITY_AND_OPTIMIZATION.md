@@ -413,6 +413,52 @@ await this.client.post('/auth/login', { username, password })
 
 Session được tạo mới khi service khởi động (`onModuleInit`). Chainlaunch quản lý mapping từ session → X.509 identity để submit transaction. Backend service không cần giữ certificate trực tiếp.
 
+### 5.8 Nhất quán dữ liệu blockchain ↔ MongoDB (Write-DB-First + Reconciler)
+
+**Vấn đề — dual-write không atomic.** Ghi blockchain và ghi MongoDB là hai hệ thống tách biệt, không thể bọc trong một transaction chung. Nếu ghi chain trước rồi ghi DB sau (chain-first), DB fail **sau khi** chain đã commit sẽ làm hai bên lệch nhau — và vì ledger bất biến, không thể "undo" chain. Ba điểm dual-write và hậu quả khi lệch:
+
+| Thao tác            | Nếu chain OK nhưng DB fail (chain-first)                                                                    |
+| ------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `SubmitVote`        | Chain có phiếu, DB thiếu → `voteCount ≠ stats.TotalVoteCount` → `CommitMerkleRoot` reject khi đóng election |
+| `RevealVoteCompact` | Chain đã dùng `revealKey`, DB thiếu → voter retry bị chain reject "revealKey already used" → kẹt            |
+| `CommitMerkleRoot`  | Chain đã đóng, DB còn `ACTIVE` → retry bị chain reject (idempotent) → election kẹt                          |
+
+**Giải pháp 1 — Write-DB-First + trạng thái trung gian + reconciler** (cho `SubmitVote` và `CommitMerkleRoot`):
+
+```
+① Ghi DB trạng thái trung gian trước:
+     Vote.status = PENDING_CHAIN   |  Election.status = CLOSING
+     blockchainRef = null
+② Gọi chain (invoke).
+③ Chain OK   → confirm DB: CONFIRMED / CLOSED + blockchainRef = txId
+④ Chain lỗi  → query chain để phân định (chain là nguồn sự thật):
+     GetVote / GetMerkleRoot
+       • đã có trên chain  → confirm DB (recover txId từ query)
+       • chưa có           → rollback DB (xóa vote PENDING /
+                              đưa election về ACTIVE) rồi ném lỗi
+```
+
+Vì DB được ghi **trước**, unique index `(electionId, voterId)` chặn double-vote ngay từ bước ① (trước cả khi đụng chain). Với close election, trạng thái `CLOSING` còn đóng vai trò **lock** chống `closeElection` chạy đồng thời.
+
+**Giải pháp 2 — Option B (giữ chain-first + tự phục hồi khi retry)** cho `RevealVoteCompact`: không đổi thứ tự (chain trước, DB sau). Khi `revealVote` invoke ném lỗi, query `GetUsedReveal(electionId, revealKey)`:
+
+- Chain **chưa** có `revealKey` → lỗi thật, ném tiếp.
+- Chain **đã** có (và `candidateId` khớp) → đây là retry sau partial-fail → `create` lại record DB với `blockchainRef = null` (`GetUsedReveal` không trả txId). Unique index `(electionId, revealKey)` vẫn ném `P2002` nếu DB đã có record ⇒ replay thật vẫn bị chặn, chỉ phục hồi khi DB còn trống.
+
+> Reveal dùng Option B thay vì Write-DB-First vì revealKey là idempotency-key tự nhiên trên chain — chain tự chống trùng, nên retry an toàn mà không cần trạng thái trung gian.
+
+**Reconciler nền** (`apps/coordinator/src/app/reconciler`): xử lý ca process **crash** giữa bước ② và ③ (synchronous path chưa kịp confirm/rollback). Dùng `setInterval` trong `OnApplicationBootstrap` (không thêm dependency `@nestjs/schedule`), mỗi `RECONCILER_INTERVAL_MS` (mặc định 60s) quét record kẹt **cũ hơn** `RECONCILER_STALE_MS` (mặc định 120s — tránh tranh chấp với request đang chạy), có cờ chống overlap:
+
+- `Vote` còn `PENDING_CHAIN` → `GetVote`: có → `CONFIRMED` + txId; không → xóa record.
+- `Election` còn `CLOSING` → `GetMerkleRoot`: committed → `CLOSED` + recover txId/root; không → về `ACTIVE`.
+
+**Hệ quả về invariant đọc dữ liệu.** "Phiếu hợp lệ" = phiếu đã `CONFIRMED` (đã có trên chain). Do đó các hàm đọc vote **mặc định lọc `status = CONFIRMED`**: `getVoteCount`, `getCommitmentVotesByElectionId` (Merkle chỉ build từ phiếu CONFIRMED để khớp chain), `filterVotes`, `getMyElectionAllInfo`, `getElectionsByVoterId`. Hai ngoại lệ **cố ý giữ status-agnostic**:
+
+- Check double-vote trong `startSession` — phiếu `PENDING_CHAIN` vẫn phải tính là "đã vote" để không cho vote lại trong lúc đang chờ chain.
+- `verifyVote` (forensic) — cần thấy cả phiếu `PENDING_CHAIN` để phát hiện và báo cáo lệch DB ↔ chain.
+
+> **Lưu ý vận hành:** đây là mô hình **eventual consistency** — khi chain tạm thời không phản hồi, một phiếu có thể nằm `PENDING_CHAIN` cho tới khi reconciler đồng bộ được. Trong cửa sổ đó voter thấy "đã vote" (slot bị giữ) nhưng phiếu chưa được tính vào tally/Merkle cho tới khi `CONFIRMED`.
+
 ---
 
 ## 6. Tối ưu throughput blockchain — Chainlaunch Batch
@@ -496,12 +542,14 @@ Backend → HTTP REST → Chainlaunch → gRPC connection pool → Fabric Peer
 
 Backend phân biệt rõ hai loại call để tránh tạo transaction không cần thiết:
 
-| Operation                                                                     | Loại       | Tạo transaction?        | Latency              |
-| ----------------------------------------------------------------------------- | ---------- | ----------------------- | -------------------- |
-| `SubmitVote`, `CommitMerkleRoot`, `RevealVoteCompact`                         | **invoke** | Có → vào block → ledger | ~2–3s (BatchTimeout) |
-| `GetVote`, `GetMerkleRoot`, `GetTally`, `GetAuditCounts`, `VerifyVoteReceipt` | **query**  | Không                   | < 100ms              |
+| Operation                                                                                      | Loại       | Tạo transaction?        | Latency              |
+| ---------------------------------------------------------------------------------------------- | ---------- | ----------------------- | -------------------- |
+| `SubmitVote`, `CommitMerkleRoot`, `RevealVoteCompact`                                          | **invoke** | Có → vào block → ledger | ~2–3s (BatchTimeout) |
+| `GetVote`, `GetMerkleRoot`, `GetUsedReveal`, `GetTally`, `GetAuditCounts`, `VerifyVoteReceipt` | **query**  | Không                   | < 100ms              |
 
 Query đọc trực tiếp từ World State của peer, không qua orderer — rất nhanh và không tốn quota block.
+
+**Khác biệt xử lý lỗi (quan trọng cho cơ chế reconcile §5.8):** `FabricClientService` để invoke **ném** `BadRequestException` khi lỗi, còn query **trả** `{ message, result: '' }` (không ném). Nhờ vậy luồng phục hồi sau khi invoke fail có thể gọi query (`GetVote`/`GetMerkleRoot`/`GetUsedReveal`) để phân định "đã lên chain hay chưa" mà không bị exception cắt ngang.
 
 ### 6.6 Đề xuất cấu hình Chainlaunch cho production
 
@@ -881,7 +929,8 @@ await this.cacheManager.set(`election:vote:count:${id}`, voteCount, 7 * 24 * 60 
 // reveal-vote: đọc từ cache, không query MongoDB mỗi lần
 const cached = await this.cacheManager.get(`election:vote:count:${id}`)
 if (cached !== null) return cached
-return await this.prisma.vote.count({ where: { electionId: id } })
+// Chỉ đếm vote CONFIRMED để khớp stats.TotalVoteCount trên chain (xem §5.8)
+return await this.prisma.vote.count({ where: { electionId: id, status: VoteStatus.CONFIRMED } })
 ```
 
 ### 11.4 MongoDB Index strategy
@@ -893,6 +942,7 @@ election_voters: unique(electionId, voterId)     → O(1) lookup + dedup
 votes:       unique(electionId, voterId)         → O(1) dedup check
              unique(electionId, blindedCommitment)
              index(electionId, createdAt)        → ordered retrieval for merkle tree
+             index(status, createdAt)            → reconciler quét vote PENDING_CHAIN cũ (§5.8)
 revealed_votes: unique(electionId, revealKey)   → O(1) replay prevention
              unique(electionId, sig.h, sig.sPrime)
              index(electionId, candidateId)      → tally groupBy

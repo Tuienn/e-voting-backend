@@ -192,11 +192,12 @@ Collection: elections
 {
   _id:                  ObjectId,
   name:                 String (unique),
-  status:               "PENDING" | "ACTIVE" | "CLOSED" | "COMPLETED",
+  status:               "PENDING" | "ACTIVE" | "CLOSING" | "CLOSED" | "COMPLETED",
+                                    // CLOSING = trạng thái trung gian khi đóng election (Write-DB-First, xem §5.8)
   candidateIds:         String[],
   collectivePublicKey:  String?,   // EC point hex 66 chars (sinh khi START)
   merkleRoot:           String?,   // SHA256 hex 64 chars (sinh khi CLOSE)
-  blockchainRef:        String?,   // Fabric txID của CommitMerkleRoot
+  blockchainRef:        String?,   // Fabric txID của CommitMerkleRoot (ghi khi confirm CLOSED)
   startDate:            DateTime?,
   endDate:              DateTime?,
   createdAt:            DateTime,
@@ -220,13 +221,15 @@ Collection: votes
   electionId:        ObjectId,
   voterId:           ObjectId,     // ElectionVoter._id (dùng chặn double-vote)
   blindedCommitment: String,       // SHA256 hex 64 chars của điểm mù C'
-  blockchainRef:     String?,      // Fabric txID của SubmitVote
+  status:            "PENDING_CHAIN" | "CONFIRMED",  // Write-DB-First: ghi PENDING_CHAIN trước, CONFIRMED sau khi chain xác nhận (xem §5.7)
+  blockchainRef:     String?,      // Fabric txID của SubmitVote (null khi PENDING_CHAIN, ghi khi CONFIRMED)
   createdAt:         DateTime,
   updatedAt:         DateTime
 }
-Unique: (electionId, voterId)           // chặn double-vote
+Unique: (electionId, voterId)           // chặn double-vote (PENDING_CHAIN cũng giữ slot)
 Unique: (electionId, blindedCommitment) // đảm bảo commitment unique
 Index:  (electionId, createdAt)
+Index:  (status, createdAt)             // reconciler quét các vote PENDING_CHAIN cũ
 ```
 
 ### Signing Node DB (mỗi node có database riêng)
@@ -265,7 +268,7 @@ Collection: revealed_votes
     h:      String,         // scalar hex 64 chars
     sPrime: String          // scalar hex 64 chars
   },
-  blockchainRef: String?,   // Fabric txID của RevealVoteCompact
+  blockchainRef: String?,   // Fabric txID của RevealVoteCompact (null khi record được phục hồi qua Option B, xem §5.9)
   revealedAt:    DateTime
 }
 Unique: (electionId, revealKey)
@@ -651,24 +654,32 @@ Coordinator
   │ Kiểm tra election.status = ACTIVE
   │ voteId = new ObjectId().hex  (key nhất quán giữa chain và DB)
   │
-  │ HTTP POST → Chainlaunch:
-  │   FabricClientService.submitVote(electionId, voteId, blindedCommitment.toLowerCase())
-  │   → Chainlaunch invoke: SubmitVote(electionId, voteId, blindedCommitment)
-  │   → Chain kiểm tra election chưa committed Merkle root
-  │   → Chain lưu VoteView + tăng stats.TotalVoteCount
-  │   → Trả { result: { transactionId } }
-  │
-  │ MongoDB: vote.create {
-  │   id: voteId, electionId, voterId, blindedCommitment,
-  │   blockchainRef: fabricTxId
-  │ }
-  │ Unique(electionId, voterId) → chặn double-vote ở DB
+  │ ┌─ Write-DB-First (chống lệch chain↔DB, xem §nhất quán dữ liệu) ──────────┐
+  │ │ ① MongoDB vote.create {                                                │
+  │ │      id: voteId, electionId, voterId, blindedCommitment,               │
+  │ │      status: PENDING_CHAIN, blockchainRef: null                        │
+  │ │    }                                                                   │
+  │ │    Unique(electionId, voterId) → chặn double-vote NGAY (trước cả chain) │
+  │ │                                                                        │
+  │ │ ② HTTP POST → Chainlaunch:                                             │
+  │ │      submitVote(electionId, voteId, blindedCommitment.toLowerCase())   │
+  │ │      → invoke SubmitVote → Chain kiểm tra chưa committed Merkle root    │
+  │ │      → Chain lưu VoteView + tăng stats.TotalVoteCount                   │
+  │ │      → Trả { result: { transactionId } }                               │
+  │ │    Nếu invoke ném lỗi → query GetVote(electionId, voteId):              │
+  │ │      • có trên chain → coi như thành công, recover txId từ GetVote      │
+  │ │      • chưa có        → DELETE record PENDING (rollback) + ném lỗi      │
+  │ │                                                                        │
+  │ │ ③ MongoDB vote.update { status: CONFIRMED, blockchainRef: txId }       │
+  │ └────────────────────────────────────────────────────────────────────────┘
   │
   │ Redis.update session: { voted: true }
   │ Trả Vote record (receipt)
   ▼
-BFF → Client: 200 OK + { voteId, blindedCommitment, blockchainRef, ... }
+BFF → Client: 200 OK + { voteId, blindedCommitment, blockchainRef, status: CONFIRMED, ... }
 ```
+
+> **Lưu ý:** API chỉ trả về sau khi vote đã `CONFIRMED`. Một record còn `PENDING_CHAIN` chỉ tồn tại khi process crash giữa bước ② và ③ — reconciler sẽ tự đồng bộ lại theo chain (xem §nhất quán dữ liệu). Các hàm đọc vote (`getVoteCount`, `filterVotes`, `getMyElectionAllInfo`, ...) mặc định chỉ tính vote `CONFIRMED`.
 
 ---
 
@@ -686,33 +697,39 @@ Coordinator
   │ Kiểm tra election: status=ACTIVE, có startDate, chưa có endDate
   │
   │ [Ngoài transaction — tránh giữ lock trong ~2s gọi Fabric]
-  │ Lấy tất cả blindedCommitment của election (sort by createdAt asc)
+  │ Lấy blindedCommitment của các vote CONFIRMED (sort by createdAt asc)
   │ buildCommitmentMerkleTree(leaves):
   │   leaf_i = SHA256(UTF8(commitment_i_hex))
   │   → Build binary Merkle tree bottom-up
   │   → root = hex 64 chars
   │
-  │ HTTP POST → Chainlaunch:
-  │   FabricClientService.commitMerkleRoot(electionId, root, leaves.length)
-  │   → Chainlaunch invoke: CommitMerkleRoot(electionId, merkleRoot, voteCount)
-  │   → Chain kiểm tra voteCount === stats.TotalVoteCount
-  │   → Chain kiểm tra root chưa được commit
-  │   → Chain lưu MerkleRootView { committed: true, merkleRoot, voteCount }
-  │   → Trả { result: { transactionId } }
+  │ ┌─ Write-DB-First (chống lệch chain↔DB, xem §nhất quán dữ liệu) ──────────┐
+  │ │ ① [Transaction ngắn] Re-validate status=ACTIVE rồi update             │
+  │ │      { status: CLOSING, merkleRoot: root }                            │
+  │ │    CLOSING vừa là điểm phục hồi cho reconciler, vừa là "lock" chống    │
+  │ │    closeElection đồng thời (call thứ 2 thấy status≠ACTIVE → reject)    │
+  │ │                                                                        │
+  │ │ ② HTTP POST → Chainlaunch:                                             │
+  │ │      commitMerkleRoot(electionId, root, leaves.length)                 │
+  │ │      → invoke CommitMerkleRoot → Chain kiểm tra voteCount ===          │
+  │ │        stats.TotalVoteCount, root chưa commit                          │
+  │ │      → Chain lưu MerkleRootView { committed: true, merkleRoot, ... }    │
+  │ │      → Trả { result: { transactionId } }                               │
+  │ │    Nếu invoke ném lỗi → query GetMerkleRoot(electionId):               │
+  │ │      • đã committed → recover txId + merkleRoot từ chain               │
+  │ │      • chưa committed → rollback { status: ACTIVE, merkleRoot: null }   │
+  │ │        + ném lỗi để admin retry                                        │
+  │ │                                                                        │
+  │ │ ③ election.update { status: CLOSED, merkleRoot, blockchainRef: txId }  │
+  │ └────────────────────────────────────────────────────────────────────────┘
   │
-  │ [Transaction ngắn]
-  │ Re-validate status = ACTIVE
-  │ election.update {
-  │   status: CLOSED,
-  │   merkleRoot: root,
-  │   blockchainRef: fabricTxId
-  │ }
-  │
-  │ Đếm voteCount + cache Redis: election:vote:count:{id}
+  │ Đếm voteCount (CONFIRMED) + cache Redis: election:vote:count:{id}
   │ Trả updated election
   ▼
 BFF → Client: 200 OK
 ```
+
+> **Lưu ý:** Merkle tree chỉ build từ vote `CONFIRMED` để root khớp đúng những phiếu thực sự có trên chain. Election kẹt ở `CLOSING` (process crash giữa ② và ③) được reconciler đồng bộ lại theo chain.
 
 ---
 
@@ -755,7 +772,7 @@ Reveal-Vote
   │ revealKey = SHA256(h_bytes32 || sPrime_bytes32) hex
   │ revealPayloadHash = SHA256("reveal-v1" || uint32be(len(cId)) || cId || h32 || sPrime32)
   │
-  │ HTTP POST → Chainlaunch:
+  │ HTTP POST → Chainlaunch:  (Option B — giữ thứ tự chain-first)
   │   FabricClientService.revealVote(electionId, candidateId, revealKey, revealPayloadHash)
   │   → Chainlaunch invoke: RevealVoteCompact(electionId, candidateId, revealKey, hash)
   │   → Chain kiểm tra Merkle root đã committed
@@ -763,12 +780,18 @@ Reveal-Vote
   │   → Chain: usedRevealKey.put(revealKey → candidateId)
   │   → Chain: tally[candidateId]++, stats.RevealCount++
   │   → Trả { result: { transactionId } }
+  │   Nếu invoke ném lỗi → query GetUsedReveal(electionId, revealKey):
+  │     • chain CHƯA có revealKey → lỗi thật, ném tiếp
+  │     • chain ĐÃ có (candidateId khớp) → retry sau partial-fail:
+  │         blockchainRef = null (GetUsedReveal không trả txId), đi tiếp xuống create
   │
   │ MongoDB: revealedVote.create {
   │   electionId, candidateId, revealKey,
-  │   signature: { h, sPrime }, blockchainRef
+  │   signature: { h, sPrime }, blockchainRef   // null nếu là record phục hồi
   │ }
-  │ Unique(electionId, revealKey) → chặn replay ở DB
+  │ Unique(electionId, revealKey):
+  │   - create OK  → ghi/phục hồi thành công
+  │   - P2002      → DB đã có (replay thật) → "This vote has already been revealed"
   │
   │ [Auto-complete check]
   │ revealCount = count(revealedVote where electionId)
@@ -813,7 +836,7 @@ Coordinator.verifyVote()
   │ [Chỉ khi election CLOSED hoặc COMPLETED:]
   │
   │ Bước 4 — Build Merkle Proof từ DB
-  │   Lấy tất cả blindedCommitment của election
+  │   Lấy blindedCommitment của các vote CONFIRMED (khớp leaves đã commit lên chain)
   │   computeCommitmentProof(leaves, targetCommitment)
   │   → root, proof path
   │   Kiểm tra: root === election.merkleRoot (trong MongoDB)
@@ -916,16 +939,17 @@ POST /sc/fabric/chaincodes/{chaincodeId}/query
 
 ### Bảng hàm chaincode
 
-| Hàm chaincode                                                        | Loại   | Được gọi khi        | Service gọi |
-| -------------------------------------------------------------------- | ------ | ------------------- | ----------- |
-| `SubmitVote(electionId, voteId, blindedCommitment)`                  | invoke | Voter nộp phiếu     | Coordinator |
-| `GetVote(electionId, voteId)`                                        | query  | Verify phiếu bước 3 | Coordinator |
-| `CommitMerkleRoot(electionId, merkleRoot, voteCount)`                | invoke | Admin đóng election | Coordinator |
-| `GetMerkleRoot(electionId)`                                          | query  | Verify phiếu bước 6 | Coordinator |
-| `VerifyVoteReceipt(electionId, commitment, proofJSON)`               | query  | Verify phiếu bước 7 | Coordinator |
-| `RevealVoteCompact(electionId, candidateId, revealKey, payloadHash)` | invoke | Voter reveal phiếu  | Reveal-Vote |
-| `GetTally(electionId)`                                               | query  | Xem kết quả         | Reveal-Vote |
-| `GetAuditCounts(electionId)`                                         | query  | Audit cuộc bầu cử   | Reveal-Vote |
+| Hàm chaincode                                                        | Loại   | Được gọi khi                                 | Service gọi |
+| -------------------------------------------------------------------- | ------ | -------------------------------------------- | ----------- |
+| `SubmitVote(electionId, voteId, blindedCommitment)`                  | invoke | Voter nộp phiếu                              | Coordinator |
+| `GetVote(electionId, voteId)`                                        | query  | Verify bước 3 / reconcile vote PENDING_CHAIN | Coordinator |
+| `CommitMerkleRoot(electionId, merkleRoot, voteCount)`                | invoke | Admin đóng election                          | Coordinator |
+| `GetMerkleRoot(electionId)`                                          | query  | Verify bước 6 / reconcile election CLOSING   | Coordinator |
+| `VerifyVoteReceipt(electionId, commitment, proofJSON)`               | query  | Verify phiếu bước 7                          | Coordinator |
+| `RevealVoteCompact(electionId, candidateId, revealKey, payloadHash)` | invoke | Voter reveal phiếu                           | Reveal-Vote |
+| `GetUsedReveal(electionId, revealKey)`                               | query  | Recover reveal (Option B, §5.9)              | Reveal-Vote |
+| `GetTally(electionId)`                                               | query  | Xem kết quả                                  | Reveal-Vote |
+| `GetAuditCounts(electionId)`                                         | query  | Audit cuộc bầu cử                            | Reveal-Vote |
 
 ### Response types
 
@@ -951,12 +975,12 @@ QueryChaincodeResponse: {
 
 ### Chống double-vote
 
-| Tầng                 | Cơ chế                                                                           |
-| -------------------- | -------------------------------------------------------------------------------- |
-| Redis session        | Mỗi `voterId` 1 session; flag `voted=true` sau khi submit                        |
-| MongoDB Coordinator  | Unique index `(electionId, voterId)` trên `votes`                                |
-| MongoDB Signing Node | Unique index `(electionId, voterId)` trên `signed_voters` — ngăn tích lũy chữ ký |
-| Blockchain           | `SubmitVote` kiểm tra vote record chưa tồn tại trước khi ghi                     |
+| Tầng                 | Cơ chế                                                                                                                                     |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Redis session        | Mỗi `voterId` 1 session; flag `voted=true` sau khi submit                                                                                  |
+| MongoDB Coordinator  | Unique index `(electionId, voterId)` trên `votes` — Write-DB-First nên slot bị giữ NGAY từ khi tạo record `PENDING_CHAIN` (trước cả chain) |
+| MongoDB Signing Node | Unique index `(electionId, voterId)` trên `signed_voters` — ngăn tích lũy chữ ký                                                           |
+| Blockchain           | `SubmitVote` kiểm tra vote record chưa tồn tại trước khi ghi                                                                               |
 
 ### Chống Nonce reuse
 
@@ -972,6 +996,7 @@ Khi voter gọi `start-session` lần thứ hai, Coordinator tự động `emit 
 - `revealKey = SHA256(h || sPrime)` là fingerprint của chữ ký.
 - Unique index `(electionId, revealKey)` trên MongoDB `revealed_votes`.
 - Chaincode lưu `usedRevealKey` trên ledger, từ chối mọi reveal trùng.
+- Option B recovery (§5.9) KHÔNG nới lỏng anti-replay: khi chain báo "revealKey đã dùng", `create` vẫn ném `P2002` nếu DB đã có record (replay thật) — chỉ phục hồi khi DB còn trống (partial-fail).
 
 ### Privacy (Unlinkability)
 
@@ -982,6 +1007,26 @@ Khi voter gọi `start-session` lần thứ hai, Coordinator tự động `emit 
 ### Bảo vệ private key signing node
 
 Private key được mã hóa AES-256-GCM với `ENCRYPTION_KEY` (32 bytes base64) từ env trước khi lưu MongoDB. Chỉ decrypt trong memory khi ký, không log, không truyền đi.
+
+### Nhất quán dữ liệu blockchain ↔ MongoDB (Write-DB-First + Reconciler)
+
+Ghi blockchain rồi ghi MongoDB là **dual-write không atomic**: nếu DB fail sau khi chain đã thành công thì hai bên lệch nhau. Hệ thống xử lý theo 2 chiến lược:
+
+**Write-DB-First + trạng thái trung gian + reconciler** (SubmitVote §5.7, CloseElection §5.8):
+
+1. Ghi DB trạng thái trung gian trước (`Vote.status=PENDING_CHAIN` / `Election.status=CLOSING`), `blockchainRef=null`.
+2. Gọi chain.
+3. Chain OK → confirm DB (`CONFIRMED` / `CLOSED` + `blockchainRef=txId`).
+4. Chain ném lỗi → **query chain để phân định** (`GetVote` / `GetMerkleRoot`): đã lên chain → confirm (recover txId); chưa lên chain → rollback (xóa vote PENDING / đưa election về `ACTIVE`) rồi ném lỗi.
+
+**Option B — giữ chain-first + recover khi retry** (RevealVoteCompact §5.9): không đổi thứ tự; khi `revealVote` báo lỗi, query `GetUsedReveal` — nếu chain đã có revealKey thì coi là retry sau partial-fail và `create` lại DB record (`blockchainRef=null` vì `GetUsedReveal` không trả txId), unique index vẫn chặn replay thật.
+
+**Reconciler** (`apps/coordinator/src/app/reconciler`): chạy nền bằng `setInterval` (trong `OnApplicationBootstrap`), mỗi `RECONCILER_INTERVAL_MS` (mặc định 60s) quét các record kẹt **cũ hơn** `RECONCILER_STALE_MS` (mặc định 120s, tránh tranh chấp với request đang chạy):
+
+- `Vote` còn `PENDING_CHAIN` → `GetVote`: có → `CONFIRMED`, không → xóa.
+- `Election` còn `CLOSING` → `GetMerkleRoot`: committed → `CLOSED`, không → về `ACTIVE`.
+
+Chain là **nguồn sự thật** để reconcile. Hệ quả: các hàm đọc vote mặc định chỉ tính `status=CONFIRMED` (`getVoteCount`, `getCommitmentVotesByElectionId`, `filterVotes`, `getMyElectionAllInfo`, `getElectionsByVoterId`); riêng check double-vote ở `startSession` và `verifyVote` cố ý giữ status-agnostic (PENDING vẫn tính là đã vote; verify cần thấy cả PENDING để lộ lệch DB↔chain).
 
 ---
 
