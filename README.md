@@ -195,6 +195,7 @@ Collection: elections
   status:               "PENDING" | "ACTIVE" | "CLOSING" | "CLOSED" | "COMPLETED",
                                     // CLOSING = trạng thái trung gian khi đóng election (Write-DB-First, xem §5.8)
   candidateIds:         String[],
+  maxSelectableCandidates: Int,     // số ứng viên tối đa được chọn mỗi lá phiếu (default 1); backend enforce ở reveal
   collectivePublicKey:  String?,   // EC point hex 66 chars (sinh khi START)
   merkleRoot:           String?,   // SHA256 hex 64 chars (sinh khi CLOSE)
   blockchainRef:        String?,   // Fabric txID của CommitMerkleRoot (ghi khi confirm CLOSED)
@@ -262,7 +263,7 @@ Collection: revealed_votes
 {
   _id:          ObjectId,
   electionId:   ObjectId,
-  candidateId:  ObjectId,   // plaintext nhưng không có voterId
+  candidateIds: ObjectId[], // các ứng viên đã chọn (canonical: dedupe + sort); plaintext nhưng không có voterId. 1 lá phiếu = 1 record
   revealKey:    String,     // SHA256(h_bytes || sPrime_bytes) hex 64 chars
   signature: {
     h:      String,         // scalar hex 64 chars
@@ -273,7 +274,7 @@ Collection: revealed_votes
 }
 Unique: (electionId, revealKey)
 Unique: (electionId, signature.h, signature.sPrime)
-Index:  (electionId, candidateId)
+Index:  (electionId)   // tally per-candidate qua aggregateRaw $unwind '$candidateIds'
 ```
 
 ---
@@ -380,11 +381,11 @@ Tất cả API yêu cầu role `ADMIN`. BFF nhận HTTP rồi forward qua TCP đ
 ```
 POST /api/v1/coordinator/election/create
 Roles: ADMIN
-Body: { name, candidateIds: ["id1", "id2"] }
+Body: { name, candidateIds: ["id1", "id2"], maxSelectableCandidates?: 1 }
 ```
 
 ```
-BFF → TCP send: election.create_election { name, candidateIds }
+BFF → TCP send: election.create_election { name, candidateIds, maxSelectableCandidates }
   ▼
 Coordinator
   │ TCP send: user.get_users_by_ids { ids: candidateIds, role: "CANDIDATE" }
@@ -393,7 +394,8 @@ Identity → trả danh sách candidate users
   ▼
 Coordinator
   │ Kiểm tra tất cả IDs tồn tại, role = CANDIDATE, isActive = true
-  │ MongoDB: election.create { name, candidateIds, status: PENDING }
+  │ maxSelectableCandidates: default 1; validate 1 <= max <= candidateIds.length
+  │ MongoDB: election.create { name, candidateIds, maxSelectableCandidates, status: PENDING }
   │ Omit collectivePublicKey, blockchainRef, merkleRoot khỏi response
   │ Trả election object
   ▼
@@ -568,13 +570,15 @@ BFF → Client
 ```
 Nhận: { sessionId, collectiveCommitment: R_hex, collectivePublicKey: P_hex }
 
-1. Chọn candidateId
-2. M = SHA256(UTF8(electionId) || UTF8(candidateId))
+1. Chọn candidateIds (1..maxSelectableCandidates ứng viên)
+2. payload = JSON.stringify(canonical(candidateIds))   // dedupe + sort lexicographic
+   M = buildVoteMessage(electionId, candidateIds)
+     = SHA256("ev-vote-v2" || 0x00 || UTF8(electionId) || 0x00 || UTF8(payload))
 3. Sinh α, β ∈ [1, n-1]  ngẫu nhiên (blinding factors, bí mật)
 4. C' = R_agg + α·G + β·P_agg  (blinded commitment)
 5. h  = SHA256(M || compressed(C')) mod n  (blinded challenge)
 6. r  = (h - β) mod n                      (challenge gửi server)
-7. Lưu localStorage: { candidateId, α, β, h, sessionId }
+7. Lưu localStorage/secret: { candidateIds, α, β, h, sessionId }
 ```
 
 #### Bước 2 — Ký phiếu mù (`sign`)
@@ -740,12 +744,12 @@ Sau khi election đóng, voter gửi chữ ký Schnorr đã unblind lên endpoin
 ```
 POST http://localhost:3308/reveal-vote/:electionId/reveal
 Public (không JWT)
-Body: { candidateId, h, sPrime }
+Body: { candidateIds: ["id1", "id2"], h, sPrime }
 ```
 
 ```
 Client (VOTER) — không kèm JWT
-  │ Lấy { candidateId, h, sPrime } từ localStorage
+  │ Lấy { candidateIds, h, sPrime } từ localStorage/secret
   │ POST /reveal-vote/:electionId/reveal
   ▼
 Reveal-Vote (HTTP handler)
@@ -758,11 +762,13 @@ Coordinator → trả election data
 Reveal-Vote
   │ Kiểm tra status = CLOSED
   │ Kiểm tra election có collectivePublicKey
-  │ Kiểm tra candidateId thuộc election.candidateIds
+  │ candidateIds = canonical(dto.candidateIds)   // dedupe + sort lexicographic
+  │ Kiểm tra MỌI candidateId thuộc election.candidateIds
+  │ Kiểm tra candidateIds.length <= election.maxSelectableCandidates
   │
   │ [Verify EC-Schnorr — điểm tin cậy duy nhất]
-  │ M = buildVoteMessage(electionId, candidateId)
-  │   = SHA256(UTF8(electionId) || UTF8(candidateId))
+  │ M = buildVoteMessage(electionId, candidateIds)
+  │   = SHA256("ev-vote-v2" || 0x00 || electionId || 0x00 || JSON.stringify(candidateIds))
   │ isValid = verify(M, h, sPrime, ecParams, P_agg)
   │   C_check = sPrime·G + h·P_agg
   │   h_check = SHA256(M || compressed(C_check)) mod n
@@ -770,23 +776,24 @@ Reveal-Vote
   │ Nếu không valid → 400 Invalid signature
   │
   │ revealKey = SHA256(h_bytes32 || sPrime_bytes32) hex
-  │ revealPayloadHash = SHA256("reveal-v1" || uint32be(len(cId)) || cId || h32 || sPrime32)
+  │ candidateIdsJson = JSON.stringify(candidateIds)   // chuỗi canonical duy nhất
+  │ revealPayloadHash = SHA256("reveal-v2" || uint32be(len(candidateIdsJson)) || candidateIdsJson || h32 || sPrime32)
   │
   │ HTTP POST → Chainlaunch:  (Option B — giữ thứ tự chain-first)
-  │   FabricClientService.revealVote(electionId, candidateId, revealKey, revealPayloadHash)
-  │   → Chainlaunch invoke: RevealVoteCompact(electionId, candidateId, revealKey, hash)
+  │   FabricClientService.revealVote(electionId, candidateIdsJson, revealKey, revealPayloadHash)
+  │   → Chainlaunch invoke: RevealVoteCompact(electionId, candidateIdsJson, revealKey, hash)
   │   → Chain kiểm tra Merkle root đã committed
   │   → Chain kiểm tra revealKey chưa dùng (chống replay on-chain)
-  │   → Chain: usedRevealKey.put(revealKey → candidateId)
-  │   → Chain: tally[candidateId]++, stats.RevealCount++
+  │   → Chain: usedRevealKey.put(revealKey → candidateIds)
+  │   → Chain: tally[mỗi candidateId]++ , stats.RevealCount++ (1 lần/phiếu)
   │   → Trả { result: { transactionId } }
   │   Nếu invoke ném lỗi → query GetUsedReveal(electionId, revealKey):
   │     • chain CHƯA có revealKey → lỗi thật, ném tiếp
-  │     • chain ĐÃ có (candidateId khớp) → retry sau partial-fail:
+  │     • chain ĐÃ có (candidateIds khớp) → retry sau partial-fail:
   │         blockchainRef = null (GetUsedReveal không trả txId), đi tiếp xuống create
   │
   │ MongoDB: revealedVote.create {
-  │   electionId, candidateId, revealKey,
+  │   electionId, candidateIds, revealKey,
   │   signature: { h, sPrime }, blockchainRef   // null nếu là record phục hồi
   │ }
   │ Unique(electionId, revealKey):
@@ -875,18 +882,20 @@ Reveal-Vote
   │ Kiểm tra status = CLOSED | COMPLETED
   │
   │ Song song:
-  │   1. prisma.revealedVote.groupBy(['candidateId'])
-  │      → { candidateId, count }[] từ DB
-  │   2. HTTP POST Chainlaunch: GetTally(electionId)
-  │      → TallyView { tally: { [candidateId]: count } } từ chain
+  │   1. prisma.revealedVote.aggregateRaw([$match, $unwind '$candidateIds', $group _id count])
+  │      → { candidateId, count }[] từ DB (groupBy thường KHÔNG unwind được mảng)
+  │      + count(revealedVote) = số LÁ PHIẾU đã reveal (dbRevealedBallots)
+  │   2. HTTP POST Chainlaunch: GetTally(electionId) → { tally: { [candidateId]: count } } (lượt chọn)
+  │      + GetAuditCounts(electionId) → revealCount = số phiếu trên chain (chainRevealedBallots)
   │   3. TCP send: user.get_users_by_ids { ids: candidateIds, role: "CANDIDATE" }
   │      → Identity → tên ứng viên
   │
   │ Build kết quả cho mỗi candidateId:
   │   { candidateId, candidateName, dbRevealCount, chainRevealCount }
   │
-  │ So sánh dbRevealTotal vs chainRevealTotal
-  │ Trả tallyResult[]
+  │ Trả thêm 4 con số tách bạch:
+  │   dbRevealedBallots / chainRevealedBallots   (số PHIẾU đã reveal)
+  │   dbTotalSelections / chainTotalSelections   (tổng LƯỢT CHỌN = ∑ per-candidate; >= số phiếu)
   ▼
 Client: kết quả có thể kiểm chứng chéo DB ↔ Blockchain
 ```
@@ -939,17 +948,17 @@ POST /sc/fabric/chaincodes/{chaincodeId}/query
 
 ### Bảng hàm chaincode
 
-| Hàm chaincode                                                        | Loại   | Được gọi khi                                 | Service gọi |
-| -------------------------------------------------------------------- | ------ | -------------------------------------------- | ----------- |
-| `SubmitVote(electionId, voteId, blindedCommitment)`                  | invoke | Voter nộp phiếu                              | Coordinator |
-| `GetVote(electionId, voteId)`                                        | query  | Verify bước 3 / reconcile vote PENDING_CHAIN | Coordinator |
-| `CommitMerkleRoot(electionId, merkleRoot, voteCount)`                | invoke | Admin đóng election                          | Coordinator |
-| `GetMerkleRoot(electionId)`                                          | query  | Verify bước 6 / reconcile election CLOSING   | Coordinator |
-| `VerifyVoteReceipt(electionId, commitment, proofJSON)`               | query  | Verify phiếu bước 7                          | Coordinator |
-| `RevealVoteCompact(electionId, candidateId, revealKey, payloadHash)` | invoke | Voter reveal phiếu                           | Reveal-Vote |
-| `GetUsedReveal(electionId, revealKey)`                               | query  | Recover reveal (Option B, §5.9)              | Reveal-Vote |
-| `GetTally(electionId)`                                               | query  | Xem kết quả                                  | Reveal-Vote |
-| `GetAuditCounts(electionId)`                                         | query  | Audit cuộc bầu cử                            | Reveal-Vote |
+| Hàm chaincode                                                             | Loại   | Được gọi khi                                                | Service gọi |
+| ------------------------------------------------------------------------- | ------ | ----------------------------------------------------------- | ----------- |
+| `SubmitVote(electionId, voteId, blindedCommitment)`                       | invoke | Voter nộp phiếu                                             | Coordinator |
+| `GetVote(electionId, voteId)`                                             | query  | Verify bước 3 / reconcile vote PENDING_CHAIN                | Coordinator |
+| `CommitMerkleRoot(electionId, merkleRoot, voteCount)`                     | invoke | Admin đóng election                                         | Coordinator |
+| `GetMerkleRoot(electionId)`                                               | query  | Verify bước 6 / reconcile election CLOSING                  | Coordinator |
+| `VerifyVoteReceipt(electionId, commitment, proofJSON)`                    | query  | Verify phiếu bước 7                                         | Coordinator |
+| `RevealVoteCompact(electionId, candidateIdsJson, revealKey, payloadHash)` | invoke | Voter reveal phiếu (candidateIdsJson = mảng JSON canonical) | Reveal-Vote |
+| `GetUsedReveal(electionId, revealKey)`                                    | query  | Recover reveal (Option B, §5.9)                             | Reveal-Vote |
+| `GetTally(electionId)`                                                    | query  | Xem kết quả                                                 | Reveal-Vote |
+| `GetAuditCounts(electionId)`                                              | query  | Audit cuộc bầu cử                                           | Reveal-Vote |
 
 ### Response types
 
@@ -989,7 +998,7 @@ Khi voter gọi `start-session` lần thứ hai, Coordinator tự động `emit 
 ### Chống cross-election replay
 
 - Coordinator kiểm tra `collectivePublicKey` từ signing nodes phải khớp với `election.collectivePublicKey` khi tạo session.
-- `buildVoteMessage(electionId, candidateId)` binding `electionId` vào M: chữ ký valid trong election A không verify được trong election B.
+- `buildVoteMessage(electionId, candidateIds)` (domain `ev-vote-v2`) binding `electionId` + tập `candidateIds` canonical vào M: chữ ký valid trong election A không verify được trong election B.
 
 ### Chống replay reveal
 
@@ -1001,8 +1010,8 @@ Khi voter gọi `start-session` lần thứ hai, Coordinator tự động `emit 
 ### Privacy (Unlinkability)
 
 - Submit: server lưu `blindedCommitment = SHA256(C')` phụ thuộc blinding factors α, β bí mật của voter.
-- Reveal: server lưu `candidateId` không có `voterId`.
-- Không tồn tại JOIN nào nối `Vote.voterId ↔ RevealedVote.candidateId`.
+- Reveal: server lưu `candidateIds` không có `voterId`.
+- Không tồn tại JOIN nào nối `Vote.voterId ↔ RevealedVote.candidateIds`.
 
 ### Bảo vệ private key signing node
 

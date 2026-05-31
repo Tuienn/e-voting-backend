@@ -35,14 +35,14 @@ Hệ thống được thiết kế theo nguyên tắc **"không tin cậy bất 
 
 **Tính chất bầu cử được đảm bảo:**
 
-| Tính chất                                    | Cơ chế đảm bảo                                              |
-| -------------------------------------------- | ----------------------------------------------------------- |
-| **Tính bí mật** (ballot secrecy)             | Blind signature: server không biết voter bầu ai             |
-| **Tính duy nhất** (one voter one vote)       | Redis session + MongoDB unique index + Signing Node dedup   |
-| **Tính xác thực** (vote authenticity)        | EC-Schnorr verify tại reveal phase                          |
-| **Tính không thể chối bỏ** (non-repudiation) | Blockchain ghi bất biến txID                                |
-| **Tính minh bạch** (verifiability)           | Merkle proof cho phép bất kỳ ai verify                      |
-| **Tính ẩn danh** (unlinkability)             | `Vote.voterId` và `RevealedVote.candidateId` không thể JOIN |
+| Tính chất                                    | Cơ chế đảm bảo                                               |
+| -------------------------------------------- | ------------------------------------------------------------ |
+| **Tính bí mật** (ballot secrecy)             | Blind signature: server không biết voter bầu ai              |
+| **Tính duy nhất** (one voter one vote)       | Redis session + MongoDB unique index + Signing Node dedup    |
+| **Tính xác thực** (vote authenticity)        | EC-Schnorr verify tại reveal phase                           |
+| **Tính không thể chối bỏ** (non-repudiation) | Blockchain ghi bất biến txID                                 |
+| **Tính minh bạch** (verifiability)           | Merkle proof cho phép bất kỳ ai verify                       |
+| **Tính ẩn danh** (unlinkability)             | `Vote.voterId` và `RevealedVote.candidateIds` không thể JOIN |
 
 ---
 
@@ -100,12 +100,13 @@ Coordinator:
 Client:
   α, β   ∈ [1, n-1]    (blinding factors, bí mật tuyệt đối, không rời browser)
   C'     = R + α·G + β·P_agg
-  M      = SHA256("ev-vote-v1" ‖ 0x00 ‖ electionId ‖ 0x00 ‖ candidateId)
+  payload = JSON.stringify(canonical(candidateIds))   // dedupe + sort lexicographic
+  M      = SHA256("ev-vote-v2" ‖ 0x00 ‖ electionId ‖ 0x00 ‖ payload)
   h      = SHA256(M ‖ compressed(C')) mod n
   r      = (h − β) mod n       ← gửi lên server
 ```
 
-> `M` dùng domain separator `ev-vote-v1` để ngăn collision với các hash khác trong hệ thống.
+> `M` dùng domain separator `ev-vote-v2` để ngăn collision với các hash khác. Mỗi lá phiếu có thể chọn **nhiều** ứng viên; `payload` là chuỗi JSON canonical (dedupe + sort) phải giống hệt giữa client (lúc ký) và backend (lúc verify).
 
 **Pha 3 — Sign Partial (Signing Node):**
 
@@ -151,9 +152,9 @@ s'·G + h·P_agg
 
 ### 2.3 Đặc tính bảo mật
 
-**Blindness (Tính mù):** Server chỉ thấy `r` (blinded challenge) và `blindedCommitment = SHA256(C')`. Không thể recover `candidateId` hay `(α, β)` từ các giá trị này.
+**Blindness (Tính mù):** Server chỉ thấy `r` (blinded challenge) và `blindedCommitment = SHA256(C')`. Không thể recover `candidateIds` hay `(α, β)` từ các giá trị này.
 
-**Unlinkability:** Do `r = (h − β) mod n` phụ thuộc vào `β` random, mỗi lần vote tạo ra `r` hoàn toàn khác nhau dù cùng candidateId. Server không thể liên kết `r` với phiếu reveal sau này.
+**Unlinkability:** Do `r = (h − β) mod n` phụ thuộc vào `β` random, mỗi lần vote tạo ra `r` hoàn toàn khác nhau dù cùng tập candidateIds. Server không thể liên kết `r` với phiếu reveal sau này.
 
 **Cross-election replay prevention:** `M` bind `electionId` — chữ ký `(h, s')` valid trong election A sẽ cho `h_check ≠ h` khi verify trong election B (vì `M` khác).
 
@@ -443,7 +444,7 @@ Vì DB được ghi **trước**, unique index `(electionId, voterId)` chặn do
 **Giải pháp 2 — Option B (giữ chain-first + tự phục hồi khi retry)** cho `RevealVoteCompact`: không đổi thứ tự (chain trước, DB sau). Khi `revealVote` invoke ném lỗi, query `GetUsedReveal(electionId, revealKey)`:
 
 - Chain **chưa** có `revealKey` → lỗi thật, ném tiếp.
-- Chain **đã** có (và `candidateId` khớp) → đây là retry sau partial-fail → `create` lại record DB với `blockchainRef = null` (`GetUsedReveal` không trả txId). Unique index `(electionId, revealKey)` vẫn ném `P2002` nếu DB đã có record ⇒ replay thật vẫn bị chặn, chỉ phục hồi khi DB còn trống.
+- Chain **đã** có (và `candidateIds` khớp) → đây là retry sau partial-fail → `create` lại record DB với `blockchainRef = null` (`GetUsedReveal` không trả txId). Unique index `(electionId, revealKey)` vẫn ném `P2002` nếu DB đã có record ⇒ replay thật vẫn bị chặn, chỉ phục hồi khi DB còn trống.
 
 > Reveal dùng Option B thay vì Write-DB-First vì revealKey là idempotency-key tự nhiên trên chain — chain tự chống trùng, nên retry an toàn mà không cần trạng thái trung gian.
 
@@ -945,7 +946,7 @@ votes:       unique(electionId, voterId)         → O(1) dedup check
              index(status, createdAt)            → reconciler quét vote PENDING_CHAIN cũ (§5.8)
 revealed_votes: unique(electionId, revealKey)   → O(1) replay prevention
              unique(electionId, sig.h, sig.sPrime)
-             index(electionId, candidateId)      → tally groupBy
+             index(electionId)                   → tally per-candidate qua aggregateRaw $unwind '$candidateIds'
 ```
 
 ### 11.5 Parallel queries

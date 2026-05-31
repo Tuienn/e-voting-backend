@@ -141,11 +141,18 @@ export class AppService {
         //SECTION - Kiểm tra candidateIds có tồn tại và active không
         await this.checkCandidatesExistAndActive(dto.candidateIds)
 
+        //SECTION - maxSelectableCandidates: default 1, phải nằm trong [1, số ứng viên]
+        const maxSelectableCandidates = dto.maxSelectableCandidates ?? 1
+        if (maxSelectableCandidates > dto.candidateIds.length - 1) {
+            throw new BadRequestException('maxSelectableCandidates cannot exceed the number of candidates')
+        }
+
         try {
             return await this.prisma.election.create({
                 data: {
                     name: dto.name,
-                    candidateIds: dto.candidateIds
+                    candidateIds: dto.candidateIds,
+                    maxSelectableCandidates
                 },
                 omit: {
                     collectivePublicKey: true,

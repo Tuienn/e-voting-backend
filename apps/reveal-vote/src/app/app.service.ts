@@ -28,7 +28,7 @@ import {
 import { CONFIGURATION } from '../configuration'
 import { ClientProxy } from '@nestjs/microservices'
 import { lastValueFrom } from 'rxjs'
-import { buildVoteMessage, computeRevealPayloadHash } from '@libs/utils/vote-handler.util'
+import { buildVoteMessage, canonicalizeCandidateIds, computeRevealPayloadHash } from '@libs/utils/vote-handler.util'
 import { FabricClientService } from '@libs/fabric'
 import { MongoIdDto } from '@libs/types/common.dto'
 
@@ -96,8 +96,14 @@ export class AppService {
             throw new ConflictException('Election must has collectivePublicKey to reveal')
         }
 
-        if (!existElection.candidateIds.includes(dto.candidateId)) {
+        //SECTION - Canonical hoá + validate danh sách ứng viên (enforce ở backend)
+        const candidateIds = canonicalizeCandidateIds(dto.candidateIds)
+        if (!candidateIds.every((id) => existElection.candidateIds.includes(id))) {
             throw new ForbiddenException('Candidate is not in the election')
+        }
+        const maxSelectable = existElection.maxSelectableCandidates ?? 1
+        if (candidateIds.length > maxSelectable) {
+            throw new ForbiddenException(`Cannot select more than ${maxSelectable} candidate(s)`)
         }
 
         const h = hexToScalar(dto.h)
@@ -107,9 +113,9 @@ export class AppService {
         //SECTION - Kiểm tra signature,  Đây là điểm tin cậy duy nhất: chữ ký tập thể chỉ có thể được tạo qua phiên blind sign hợp lệ.
         // Bind electionId vào message để chống cross-election replay: chữ ký
         // hợp lệ trong election A không verify được trong election B vì message
-        // khác nhau. Client phải dùng cùng buildVoteMessage(electionId, candidateId)
-        // ở pha blind.
-        const messageBuf = buildVoteMessage(dto.electionId, dto.candidateId)
+        // khác nhau. Client phải dùng cùng buildVoteMessage(electionId, candidateIds)
+        // với cùng quy ước canonical ở pha blind.
+        const messageBuf = buildVoteMessage(dto.electionId, candidateIds)
         const isValidSignature = verify(messageBuf, h, sPrime, ecParams, rho)
 
         if (!isValidSignature) {
@@ -120,13 +126,15 @@ export class AppService {
         const revealKey = this.computeRevealKey(h, sPrime)
 
         //SECTION - Commit on chain trước (Option B: GIỮ thứ tự chain-first, không đổi)
-        const revealPayloadHash = computeRevealPayloadHash(dto.candidateId, dto.h, dto.sPrime)
+        //NOTE - candidateIdsJson là chuỗi canonical DUY NHẤT dùng cho cả hash và arg chaincode
+        const candidateIdsJson = JSON.stringify(candidateIds)
+        const revealPayloadHash = computeRevealPayloadHash(candidateIds, dto.h, dto.sPrime)
 
         let blockchainRef: string | null
         try {
             const fabricRes = await this.fabricClient.revealVote(
                 dto.electionId,
-                dto.candidateId,
+                candidateIdsJson,
                 revealKey,
                 revealPayloadHash
             )
@@ -142,10 +150,11 @@ export class AppService {
                 throw chainErr
             }
 
-            //NOTE - chain ĐÃ có revealKey. Xác thực candidateId on-chain khớp request để không ghi nhầm phiếu.
+            //NOTE - chain ĐÃ có revealKey. Xác thực candidateIds on-chain khớp request để không ghi nhầm phiếu.
+            // chaincode trả candidateIds theo đúng thứ tự canonical đã lưu ⇒ so sánh trực tiếp chuỗi JSON canonical.
             const used = JSON.parse(usedRes.result)
-            if (used.candidateId !== dto.candidateId) {
-                throw new ConflictException('Reveal key already used for a different candidate on chain')
+            if (JSON.stringify(used.candidateIds) !== candidateIdsJson) {
+                throw new ConflictException('Reveal key already used for different candidates on chain')
             }
 
             //NOTE - Recover: GetUsedReveal KHÔNG trả txId nên blockchainRef = null. Bước create bên dưới sẽ:
@@ -160,7 +169,7 @@ export class AppService {
             const revealedVote = await this.prisma.revealedVote.create({
                 data: {
                     electionId: dto.electionId,
-                    candidateId: dto.candidateId,
+                    candidateIds,
                     revealKey,
                     signature: {
                         h: dto.h,
@@ -182,7 +191,7 @@ export class AppService {
             this.eventBus
                 .emit(SOCKET_EVENT_PATTERNS.VOTE_REVEALED, {
                     electionId: revealedVote.electionId,
-                    candidateId: revealedVote.candidateId,
+                    candidateIds: revealedVote.candidateIds,
                     revealKey: revealedVote.revealKey,
                     blockchainRef: revealedVote.blockchainRef,
                     //NOTE - Model RevealedVote dùng field revealedAt, map sang createdAt cho đúng contract socket
@@ -254,13 +263,21 @@ export class AppService {
             throw new ForbiddenException('Election is not closed or completed')
         }
 
-        const [dbGroups, fabricRes, candidateNames] = await Promise.all([
-            this.prisma.revealedVote.groupBy({
-                by: ['candidateId'],
-                where: { electionId: dto.id },
-                _count: { candidateId: true }
-            }),
+        const [dbGroups, dbRevealedBallots, tallyRes, auditRes, candidateNames] = await Promise.all([
+            //NOTE - groupBy không unwind được mảng candidateIds ⇒ dùng aggregateRaw: $unwind rồi $group đếm từng candidate
+            this.prisma.revealedVote.aggregateRaw({
+                pipeline: [
+                    { $match: { electionId: { $oid: dto.id } } },
+                    { $unwind: '$candidateIds' },
+                    { $group: { _id: '$candidateIds', count: { $sum: 1 } } }
+                ]
+            }) as unknown as Promise<{ _id: { $oid: string } | string; count: number }[]>,
+            //NOTE - Số PHIẾU (ballots) đã reveal trong DB = số document (1 doc/ballot), khác tổng lượt chọn
+            this.prisma.revealedVote.count({ where: { electionId: dto.id } }),
+            //NOTE - GetTally trả map candidateId -> count ⇒ tổng = số LƯỢT CHỌN (selections) trên chain
             this.fabricClient.getTallyResult(dto.id),
+            //NOTE - GetAuditCounts trả revealCount = số PHIẾU (ballots) đã reveal trên chain (1 lần/ballot)
+            this.fabricClient.getAuditCounts(dto.id),
             //SECTION - Lấy tên candidate từ identity service
             lastValueFrom(
                 this.identityClient.send(IDENTITY_MESSAGE_PATTERNS.GET_USERS_BY_IDS, {
@@ -270,22 +287,24 @@ export class AppService {
             ) as Promise<{ id: string; name: string }[]>
         ])
 
-        const chainData = fabricRes.result ? JSON.parse(fabricRes.result) : null
+        const chainTally = tallyRes.result ? JSON.parse(tallyRes.result) : null
+        const chainAudit = auditRes.result ? JSON.parse(auditRes.result) : null
 
-        //SECTION - Build từ toàn bộ candidateIds, kể cả 0 phiếu
-        const dbMap = new Map(dbGroups.map((g) => [g.candidateId, g._count.candidateId]))
+        //SECTION - Build từ toàn bộ candidateIds, kể cả 0 phiếu.
+        //NOTE - aggregateRaw trả ObjectId dạng extended JSON { $oid }, cần unwrap về string
+        const dbMap = new Map(dbGroups.map((g) => [typeof g._id === 'string' ? g._id : g._id.$oid, g.count]))
         const nameMap = new Map(candidateNames.map((c) => [c.id, c.name]))
 
-        let dbRevealTotal = 0
-        let chainRevealTotal = 0
+        let dbTotalSelections = 0
+        let chainTotalSelections = 0
 
-        //SECTION - Tally result theo từng candidate, đồng thời tính tổng reveal để so sánh với blockchain.
+        //SECTION - Tally result theo từng candidate, đồng thời cộng dồn TỔNG LƯỢT CHỌN (selections) 2 phía.
         // Nếu có candidate nào không tồn tại trong dbMap thì count = 0
         const tallyResult = existElection.candidateIds.map((candidateId: string) => {
             const dbRevealCount = dbMap.get(candidateId) ?? 0
-            const chainRevealCount = chainData?.tally?.[candidateId] ?? 0
-            dbRevealTotal += dbRevealCount
-            chainRevealTotal += chainRevealCount
+            const chainRevealCount = chainTally?.tally?.[candidateId] ?? 0
+            dbTotalSelections += dbRevealCount
+            chainTotalSelections += chainRevealCount
             return {
                 candidateId,
                 candidateName: nameMap.get(candidateId) ?? null,
@@ -294,14 +313,26 @@ export class AppService {
             }
         })
 
+        //NOTE - Số PHIẾU đã reveal trên chain (1 lần/ballot). Khác tổng lượt chọn khi bầu nhiều ứng viên.
+        const chainRevealedBallots = chainAudit?.revealCount ?? 0
+
         return {
             electionId: dto.id,
             electionName: existElection.name,
             status: existElection.status,
             tallyResult,
-            dbRevealTotal,
-            chainRevealTotal: chainRevealTotal,
-            chainError: chainData ? null : fabricRes.message || 'Failed to get data from blockchain'
+            //NOTE - 4 con số tách bạch:
+            // - revealedBallots = SỐ PHIẾU đã reveal (mỗi lá phiếu đếm đúng 1 lần)
+            // - totalSelections = TỔNG LƯỢT CHỌN (mỗi lượt chọn ứng viên đếm 1 lần; >= số phiếu khi multi-select)
+            // Mỗi chỉ số có 2 nguồn: db (MongoDB) và chain (Fabric).
+            dbRevealedBallots,
+            chainRevealedBallots,
+            dbTotalSelections,
+            chainTotalSelections,
+            chainError:
+                chainTally && chainAudit
+                    ? null
+                    : tallyRes.message || auditRes.message || 'Failed to get data from blockchain'
         }
     }
 }

@@ -10,10 +10,12 @@ import {
     IsDateString,
     IsDefined,
     IsEnum,
+    IsInt,
     IsMongoId,
     IsOptional,
     IsString,
     MaxLength,
+    Min,
     MinLength
 } from 'class-validator'
 import { PaginationQueryDto } from '../common.dto'
@@ -33,6 +35,12 @@ export class CreateElectionDto {
     @ArrayNotEmpty({ message: invalidDataField('candidateIds', 'not empty array') })
     @ArrayUnique({ message: invalidDataField('candidateIds', 'unique MongoDB ObjectId') })
     candidateIds: string[]
+
+    //NOTE - Số ứng viên tối đa được chọn mỗi lá phiếu. Default 1; service validate <= candidateIds.length
+    @IsOptional()
+    @IsInt({ message: invalidDataField('maxSelectableCandidates', 'integer') })
+    @Min(1, { message: invalidDataField('maxSelectableCandidates', 'integer >= 1') })
+    maxSelectableCandidates?: number
 }
 
 export class FilterElectionsDto extends PaginationQueryDto {

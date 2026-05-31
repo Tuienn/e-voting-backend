@@ -27,7 +27,7 @@ export class AppController {
         examples: {
             example1: {
                 value: {
-                    candidateId: '69f5b5475c48c621a0681cbc',
+                    candidateIds: ['69f5b5475c48c621a0681cbc', '69ef6ddc1577a677366cd218'],
                     h: '1234567890',
                     sPrime: '1234567890'
                 }

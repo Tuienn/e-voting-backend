@@ -105,14 +105,19 @@ export class FabricClientService implements OnModuleInit {
 
     async revealVote(
         electionId: string,
-        candidateId: string,
+        candidateIdsJson: string,
         revealKey: string,
         revealPayloadHash: string
     ): Promise<InvokeChaincodeResponse> {
         try {
             const response = await this.client.post(
                 `/sc/fabric/chaincodes/${this.options.chaincodeId}/invoke`,
-                this.genApiChaincodeBody('RevealVoteCompact', [electionId, candidateId, revealKey, revealPayloadHash])
+                this.genApiChaincodeBody('RevealVoteCompact', [
+                    electionId,
+                    candidateIdsJson,
+                    revealKey,
+                    revealPayloadHash
+                ])
             )
 
             return response.data

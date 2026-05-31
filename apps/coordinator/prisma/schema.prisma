@@ -32,6 +32,8 @@ model Election {
   name           String          @unique
   status         ElectionStatus  @default(PENDING)
   candidateIds   String[]
+  // Số ứng viên tối đa được chọn mỗi lá phiếu (1 = bầu đơn). Backend enforce ở reveal phase.
+  maxSelectableCandidates Int    @default(1)
   electionVoters ElectionVoter[]
   votes          Vote[]
 

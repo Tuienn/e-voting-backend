@@ -1,11 +1,14 @@
 import { invalidDataField, missingDataField } from '@libs/constants/text.constant'
 import { OmitType } from '@nestjs/swagger'
-import { IsDefined, IsHexadecimal, IsMongoId } from 'class-validator'
+import { ArrayNotEmpty, ArrayUnique, IsDefined, IsHexadecimal, IsMongoId } from 'class-validator'
+import { IsMongoIdArray } from '../share-decorator/is-mongo-id-array.decorator'
 
 export class RevealVoteDto {
-    @IsDefined({ message: missingDataField('candidateId') })
-    @IsMongoId({ message: invalidDataField('candidate', 'MongoDB ObjectId') })
-    candidateId: string
+    @IsDefined({ message: missingDataField('candidateIds') })
+    @IsMongoIdArray('candidateIds')
+    @ArrayNotEmpty({ message: invalidDataField('candidateIds', 'not empty array') })
+    @ArrayUnique({ message: invalidDataField('candidateIds', 'unique MongoDB ObjectId') })
+    candidateIds: string[]
 
     @IsDefined({ message: missingDataField('electionId') })
     @IsMongoId({ message: invalidDataField('election', 'MongoDB ObjectId') })

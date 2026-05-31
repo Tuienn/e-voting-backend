@@ -10,7 +10,7 @@ export type VoteCommittedPayload = {
 
 export type VoteRevealedPayload = {
     electionId: string
-    candidateId: string
+    candidateIds: string[]
     revealKey: string
     blockchainRef: string
     createdAt: string
