@@ -1,5 +1,6 @@
 import { FabricClientModule } from '@libs/fabric'
 import { TcpClientModule } from '@libs/modules/tcp-client.module'
+import { EventBusModule } from '@libs/modules/event-bus.module'
 import { CustomValidationPipe } from '@libs/pipes/custom-validation.pipe'
 import { Module } from '@nestjs/common'
 import { AppController } from './app.controller'
@@ -36,6 +37,11 @@ import { PrismaModule } from '../infrastructure/prisma/prisma.module'
                 port: CONFIGURATION.REVEAL_VOTE_CONFIG.IDENTITY_TCP_PORT
             }
         ]),
+        EventBusModule.register({
+            host: CONFIGURATION.REVEAL_VOTE_CONFIG.REDIS_HOST,
+            port: CONFIGURATION.REVEAL_VOTE_CONFIG.REDIS_PORT,
+            password: CONFIGURATION.REVEAL_VOTE_CONFIG.REDIS_PASSWORD
+        }),
         PrismaModule,
         FabricClientModule.register({
             baseURL: CONFIGURATION.REVEAL_VOTE_CONFIG.FABRIC_HOST,

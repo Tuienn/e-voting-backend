@@ -1,6 +1,7 @@
 import { FabricClientModule } from '@libs/fabric'
 import { RedisCacheModule } from '@libs/modules/redis-cache.module'
 import { TcpClientModule } from '@libs/modules/tcp-client.module'
+import { EventBusModule } from '@libs/modules/event-bus.module'
 import { CustomValidationPipe } from '@libs/pipes/custom-validation.pipe'
 import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
@@ -31,6 +32,11 @@ import { VoteModule } from './vote/app.module'
         ]),
         RedisCacheModule.register({
             ttl: CONFIGURATION.COORDINATOR_CONFIG.REDIS_SESSION_CACHE_TTL,
+            host: CONFIGURATION.COORDINATOR_CONFIG.REDIS_HOST,
+            port: CONFIGURATION.COORDINATOR_CONFIG.REDIS_PORT,
+            password: CONFIGURATION.COORDINATOR_CONFIG.REDIS_PASSWORD
+        }),
+        EventBusModule.register({
             host: CONFIGURATION.COORDINATOR_CONFIG.REDIS_HOST,
             port: CONFIGURATION.COORDINATOR_CONFIG.REDIS_PORT,
             password: CONFIGURATION.COORDINATOR_CONFIG.REDIS_PASSWORD

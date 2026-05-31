@@ -11,6 +11,7 @@ import {
     forwardRef,
     Inject,
     Injectable,
+    Logger,
     NotFoundException
 } from '@nestjs/common'
 import { MongoIdDto } from '@libs/types/common.dto'
@@ -21,7 +22,11 @@ import { PrismaService } from '../../infrastructure/prisma/prisma.service'
 import { AppService as ElectionService } from '../election/app.service'
 import { v4 as uuidv4 } from 'uuid'
 import { ObjectId } from 'bson'
-import { IDENTITY_MESSAGE_PATTERNS, SIGNING_NODE_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
+import {
+    IDENTITY_MESSAGE_PATTERNS,
+    SIGNING_NODE_MESSAGE_PATTERNS,
+    SOCKET_EVENT_PATTERNS
+} from '@libs/constants/message-patterns.constant'
 import { lastValueFrom } from 'rxjs'
 import { Cache, CACHE_MANAGER } from '@nestjs/cache-manager'
 import { handlePrismaError } from '@libs/utils/handle-prisma-error.util'
@@ -54,6 +59,7 @@ type SessionSignedCache = {
 
 @Injectable()
 export class AppService {
+    private readonly logger = new Logger(AppService.name)
     private readonly signingNodeClients: ClientProxy[]
 
     constructor(
@@ -63,7 +69,8 @@ export class AppService {
         private readonly identityClient: ClientProxy,
         @Inject(forwardRef(() => ElectionService)) private readonly electionService: ElectionService,
         @Inject(CACHE_MANAGER) private readonly cacheManager: Cache,
-        private readonly fabricClientService: FabricClientService
+        private readonly fabricClientService: FabricClientService,
+        @Inject('EVENT_BUS') private readonly eventBus: ClientProxy
     ) {
         this.signingNodeClients = CONFIGURATION.COORDINATOR_CONFIG.SIGNING_NODES_TCP_NAME.map((serviceName) =>
             this.moduleRef.get<ClientProxy>(`TCP_${serviceName}`, { strict: false })
@@ -386,6 +393,19 @@ export class AppService {
                 },
                 CONFIGURATION.COORDINATOR_CONFIG.REDIS_SESSION_CACHE_TTL
             )
+
+            //NOTE - Publish event realtime tới socket gateway qua Redis Pub/Sub (fire-and-forget, không await, lỗi broker không làm hỏng luồng vote và không tạo unhandled rejection)
+            // Không gửi voterId để giữ tính ẩn danh trên socket mở
+            this.eventBus
+                .emit(SOCKET_EVENT_PATTERNS.VOTE_COMMITTED, {
+                    electionId: dto.electionId,
+                    blockchainRef: vote.blockchainRef,
+                    createdAt: vote.createdAt
+                })
+                .subscribe({
+                    error: (err) =>
+                        this.logger.error(`Emit ${SOCKET_EVENT_PATTERNS.VOTE_COMMITTED} failed: ${err?.message}`)
+                })
 
             return vote
         } catch (e) {

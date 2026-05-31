@@ -44,6 +44,15 @@ export class RevealVoteEnvConfiguration {
     IDENTITY_TCP_PORT: number
 
     @IsString()
+    REDIS_HOST: string
+
+    @IsNumber()
+    REDIS_PORT: number
+
+    @IsString()
+    REDIS_PASSWORD: string
+
+    @IsString()
     FABRIC_HOST: string
 
     @IsString()
@@ -78,6 +87,10 @@ export class RevealVoteEnvConfiguration {
         this.IDENTITY_TCP_NAME = process.env['IDENTITY_TCP_NAME'] || 'IDENTITY'
         this.IDENTITY_TCP_HOST = process.env['IDENTITY_TCP_HOST'] || 'localhost'
         this.IDENTITY_TCP_PORT = Number(process.env['IDENTITY_TCP_PORT']) || 3302
+
+        this.REDIS_HOST = process.env['REDIS_HOST'] || 'localhost'
+        this.REDIS_PORT = Number(process.env['REDIS_PORT']) || 6379
+        this.REDIS_PASSWORD = process.env['REDIS_PASSWORD'] || 'secret'
 
         this.FABRIC_HOST = process.env['FABRIC_HOST'] || 'http://localhost:8100/api/v1'
         this.FABRIC_USERNAME = process.env['FABRIC_USERNAME'] || 'fabric-client'

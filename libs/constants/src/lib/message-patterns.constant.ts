@@ -53,3 +53,8 @@ export const SIGNING_NODE_MESSAGE_PATTERNS = {
     SIGN_PARTIAL: 'signing_node.sign_partial',
     CLEANUP_ELECTION: 'signing_node.cleanup_election'
 } as const
+
+export const SOCKET_EVENT_PATTERNS = {
+    VOTE_COMMITTED: 'socket.vote_committed',
+    VOTE_REVEALED: 'socket.vote_revealed'
+} as const

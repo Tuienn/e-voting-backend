@@ -1,5 +1,9 @@
 import { handlePrismaError } from '@libs/utils/handle-prisma-error.util'
-import { COORDINATOR_MESSAGE_PATTERNS, IDENTITY_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
+import {
+    COORDINATOR_MESSAGE_PATTERNS,
+    IDENTITY_MESSAGE_PATTERNS,
+    SOCKET_EVENT_PATTERNS
+} from '@libs/constants/message-patterns.constant'
 import {
     BadRequestException,
     ConflictException,
@@ -38,7 +42,8 @@ export class AppService {
         private readonly coordinatorClient: ClientProxy,
         @Inject(`TCP_${CONFIGURATION.REVEAL_VOTE_CONFIG.IDENTITY_TCP_NAME}`)
         private readonly identityClient: ClientProxy,
-        private readonly fabricClient: FabricClientService
+        private readonly fabricClient: FabricClientService,
+        @Inject('EVENT_BUS') private readonly eventBus: ClientProxy
     ) {}
 
     private computeRevealKey(h: bigint, sPrime: bigint): string {
@@ -142,9 +147,26 @@ export class AppService {
                 }
             })
             //SECTION - Auto-transition closed → completed khi mọi phiếu đã reveal
-            const electionCompleted = await this.triggerCompleteElectionIfAllRevealed(dto.electionId).catch((err) =>
-                this.logger.error(`Auto-complete election ${dto.electionId} failed: ${err?.message}`)
-            )
+            const electionCompleted =
+                (await this.triggerCompleteElectionIfAllRevealed(dto.electionId).catch((err) =>
+                    this.logger.error(`Auto-complete election ${dto.electionId} failed: ${err?.message}`)
+                )) ?? false
+
+            //NOTE - Publish event realtime tới socket gateway qua Redis Pub/Sub (fire-and-forget, không await, lỗi broker không làm hỏng luồng reveal và không tạo unhandled rejection)
+            this.eventBus
+                .emit(SOCKET_EVENT_PATTERNS.VOTE_REVEALED, {
+                    electionId: revealedVote.electionId,
+                    candidateId: revealedVote.candidateId,
+                    revealKey: revealedVote.revealKey,
+                    blockchainRef: revealedVote.blockchainRef,
+                    //NOTE - Model RevealedVote dùng field revealedAt, map sang createdAt cho đúng contract socket
+                    createdAt: revealedVote.revealedAt,
+                    electionCompleted
+                })
+                .subscribe({
+                    error: (err) =>
+                        this.logger.error(`Emit ${SOCKET_EVENT_PATTERNS.VOTE_REVEALED} failed: ${err?.message}`)
+                })
 
             return { ...revealedVote, electionCompleted }
         } catch (e) {

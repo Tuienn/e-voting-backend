@@ -244,11 +244,18 @@ export class AppController {
             }
         }
     })
-    async signIn(@Headers('origin') origin: string, @Body() data: SignInDto) {
+    async signIn(@Headers() headers: Record<string, string>, @Body() data: SignInDto) {
         const result = await this.appService.signIn(data)
 
-        if (['VOTER', 'CANDIDATE'].includes(result.role) && origin === CONFIGURATION.BFF_CONFIG.ADMIN_WEB_ORIGIN) {
-            throw new UnauthorizedException('Admin users can only access the admin web')
+        if (
+            ['VOTER', 'CANDIDATE'].includes(result.role) &&
+            headers.origin === CONFIGURATION.BFF_CONFIG.ADMIN_WEB_ORIGIN
+        ) {
+            throw new UnauthorizedException('Only admin users can access the admin web')
+        }
+
+        if (['ADMIN', 'CANDIDATE'].includes(result.role) && headers['x-client-platform'] === 'mobile') {
+            throw new UnauthorizedException('Only admin users can access the mobile app')
         }
 
         return new ResponseDto({
