@@ -50,8 +50,7 @@ Thumbs.db
 # Generated Prisma client code
 /apps/*/generated/prisma
 
-
-
+logs/
 
 # mTLS certificates (private keys) - KHÔNG commit
 certs/

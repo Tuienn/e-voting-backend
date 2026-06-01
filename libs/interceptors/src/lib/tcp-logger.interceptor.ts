@@ -62,7 +62,7 @@ export class TcpLoggerInterceptor implements NestInterceptor {
                     if (process.env['NODE_ENV'] !== 'production') {
                         this.prettyPrint(logEntry)
                     } else {
-                        this.logger.log(JSON.stringify(logEntry))
+                        this.logger.log(logEntry)
                     }
                 },
                 error: (error) => {
@@ -91,7 +91,7 @@ export class TcpLoggerInterceptor implements NestInterceptor {
                     if (process.env['NODE_ENV'] !== 'production') {
                         this.prettyPrint(logEntry, true)
                     } else {
-                        this.logger.error(JSON.stringify(logEntry))
+                        this.logger.error(logEntry)
                     }
                 }
             })

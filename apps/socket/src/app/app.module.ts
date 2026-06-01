@@ -1,3 +1,4 @@
+import { WinstonLoggerModule } from '@libs/modules/winston-logger.module'
 import { HttpLoggerInterceptor } from '@libs/interceptors/http-logger.interceptor'
 import { Module } from '@nestjs/common'
 import { AppController } from './app.controller'
@@ -8,7 +9,7 @@ import { APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core'
 import { ExceptionFilterHandler } from '@libs/filters/exception.filter'
 
 @Module({
-    imports: [ConfigModule.forRoot({ load: [() => CONFIGURATION] })],
+    imports: [WinstonLoggerModule, ConfigModule.forRoot({ load: [() => CONFIGURATION] })],
     controllers: [AppController],
     providers: [
         EventsGateway,

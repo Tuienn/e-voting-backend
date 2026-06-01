@@ -43,11 +43,14 @@
         "helmet": "^8.1.0",
         "ioredis": "^5.11.0",
         "merkletreejs": "^0.6.0",
+        "nest-winston": "^1.10.2",
         "reflect-metadata": "^0.1.13",
         "rxjs": "^7.8.0",
         "socket.io": "^4.8.3",
         "tough-cookie": "^6.0.1",
         "uuid": "^13.0.0",
+        "winston": "^3.19.0",
+        "winston-daily-rotate-file": "^5.0.0",
         "xlsx": "^0.18.5"
     },
     "devDependencies": {

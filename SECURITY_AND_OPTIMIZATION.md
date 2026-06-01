@@ -30,6 +30,7 @@ Hệ thống được thiết kế theo nguyên tắc **"không tin cậy bất 
 │  Tầng 5: MongoDB Constraints (unique index, transactions)   │
 │  Tầng 6: Merkle Tree (commitment integrity)                 │
 │  Tầng 7: Hyperledger Fabric (immutable ledger, CA, MSP)     │
+│  Tầng 8: mTLS — mã hoá + xác thực 2 chiều mọi kênh nội bộ  │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -313,6 +314,7 @@ TTL:   REDIS_VOTE_COUNT_CACHE_TTL (mặc định 7 ngày)
 - `maxmemory-policy: allkeys-lru` — tự động evict khi đầy (ưu tiên bỏ key ít dùng nhất)
 - `appendonly: yes` — persistence AOF, phục hồi sau restart
 - Timeout request: `TimeoutInterceptor` (5000ms mặc định) ngăn Redis chặn request quá lâu
+- **mTLS (production)**: khi `MTLS_ENABLED=true`, toàn bộ client chuyển sang `rediss://` (TLS) + trình cert mTLS; Redis server bật `--tls-auth-clients yes` — chỉ client có cert do CA nội bộ ký mới kết nối được (xem §9.7)
 
 ---
 
@@ -744,7 +746,7 @@ Ngăn slow request tiêu thụ connection indefinitely. Đặc biệt quan trọ
 
 ---
 
-## 9. Giao tiếp nội bộ — Microservice TCP
+## 9. Giao tiếp nội bộ — Microservice TCP + mTLS
 
 ### 9.1 NestJS TCP Transport
 
@@ -754,18 +756,21 @@ Tất cả service nội bộ giao tiếp qua **NestJS TCP transport** — khôn
 - **Không expose HTTP port** → các service không trực tiếp accessible từ ngoài
 - **Structured message routing** qua `@MessagePattern` — type-safe, không cần parse URL
 - **Automatic serialization/deserialization** của payload
+- **mTLS** (production): toàn bộ kênh TCP được mã hoá và xác thực hai chiều (xem §9.7)
 
 ### 9.2 Kiến trúc isolation
 
 ```
-Internet → BFF (:3000) → [TCP] → Identity (:3302)
-                       → [TCP] → Coordinator (:3303)
-                                    → [TCP] → Signing Node 1 (:3304)
-                                    → [TCP] → Signing Node 2 (:3305)
-                                    → [TCP] → Signing Node 3 (:3306)
+Internet → BFF (:3000) → [mTLS TCP] → Identity (:3302)
+                       → [mTLS TCP] → Coordinator (:3303)
+                                         → [mTLS TCP] → Signing Node 1 (:3304)
+                                         → [mTLS TCP] → Signing Node 2 (:3305)
+                                         → [mTLS TCP] → Signing Node 3 (:3306)
 
-Voter (anonymous) → Reveal-Vote (:3308) → [TCP] → Coordinator
-                                         → [TCP] → Identity
+Voter (anonymous) → Reveal-Vote (:3308) → [mTLS TCP] → Coordinator
+                                         → [mTLS TCP] → Identity
+
+Coordinator / BFF / Identity / Reveal-Vote / Socket → [mTLS] → Redis (event bus + cache)
 ```
 
 Identity, Coordinator, Signing Nodes **không có HTTP port** — không thể bị gọi trực tiếp từ ngoài. Chỉ BFF và Reveal-Vote mới expose HTTP.
@@ -816,13 +821,81 @@ client.emit(CLEANUP_ELECTION, { electionId }).subscribe()
 TcpClientModule.register([
     { serviceName: 'IDENTITY', host, port },
     { serviceName: 'COORDINATOR', host, port },
+    // signing nodes: mảng động từ env SIGNING_NODES_TCP_NAME/HOST/PORT
 ])
 
 // Inject
 @Inject('TCP_IDENTITY') private readonly identityClient: ClientProxy
 ```
 
-Tên service từ env cho phép override host/port trong Docker mà không cần sửa code.
+Tên service từ env cho phép override host/port trong Docker mà không cần sửa code. Khi mTLS bật, `tlsOptions` được inject tự động từ `getClientTlsOptions()` — không cần sửa nơi sử dụng.
+
+### 9.7 mTLS — Mutual TLS cho mọi kênh nội bộ
+
+> Tham chiếu đầy đủ: `MTLS.md`. Phần này tóm tắt thiết kế và các file liên quan.
+
+**Mô hình trust:**
+
+- **1 CA nội bộ** (`certs/ca.crt`) làm trust anchor cho cả mesh — sinh bằng `scripts/gen-mtls-certs.sh`.
+- **Mỗi service 1 cert riêng** do CA ký, EKU `serverAuth + clientAuth` (dùng chung cho cả TCP server, TCP client, Redis client):
+
+| Service        | Cert                           |
+| -------------- | ------------------------------ |
+| bff            | `certs/bff.crt/key`            |
+| identity       | `certs/identity.crt/key`       |
+| coordinator    | `certs/coordinator.crt/key`    |
+| signing-node-1 | `certs/signing-node-1.crt/key` |
+| signing-node-2 | `certs/signing-node-2.crt/key` |
+| signing-node-3 | `certs/signing-node-3.crt/key` |
+| reveal-vote    | `certs/reveal-vote.crt/key`    |
+| socket         | `certs/socket.crt/key`         |
+| redis          | `certs/redis.crt/key`          |
+
+3 signing node có **cert riêng biệt** → revoke/rotate độc lập từng node, coordinator xác nhận đúng node qua SAN.
+
+**Triển khai kỹ thuật:**
+
+```
+libs/configuration/src/lib/mtls.config.ts
+  getServerTlsOptions()  → { cert, key, ca, requestCert: true, rejectUnauthorized: true }
+  getClientTlsOptions()  → { cert, key, ca, rejectUnauthorized: true, servername? }
+  getRedisTlsOptions()   → { cert, key, ca, rejectUnauthorized: true }
+  — tất cả trả undefined khi MTLS_ENABLED != 'true' (an toàn cho dev)
+```
+
+| Kênh                           | File                                         | Cơ chế                                                                                 |
+| ------------------------------ | -------------------------------------------- | -------------------------------------------------------------------------------------- |
+| TCP server (5 service)         | `apps/*/src/main.ts`                         | `tlsOptions: getServerTlsOptions()` trong `createMicroservice` / `connectMicroservice` |
+| TCP client                     | `libs/modules/src/lib/tcp-client.module.ts`  | `tlsOptions: getClientTlsOptions(host)` — phủ toàn bộ nơi register                     |
+| Redis event bus (ioredis)      | `libs/modules/src/lib/event-bus.module.ts`   | `tls: getRedisTlsOptions()`                                                            |
+| Redis cache (node-redis/@keyv) | `libs/modules/src/lib/redis-cache.module.ts` | `rediss://` + `socket: { tls: true, ...certs }`                                        |
+| Redis consumer (socket)        | `apps/socket/src/main.ts`                    | `tls: getRedisTlsOptions()`                                                            |
+| Redis server                   | `docker-compose.mtls.yml`                    | `--tls-port 6379 --port 0 --tls-auth-clients yes`                                      |
+
+**"Mutual"** nằm ở `requestCert: true + rejectUnauthorized: true` phía server TCP, và `--tls-auth-clients yes` phía Redis — cả hai đầu đều phải trình cert hợp lệ mới kết nối được.
+
+**Vận hành:**
+
+```bash
+# Sinh cert lần đầu (chạy 1 lần, CA giữ 10 năm, cert service 1 năm)
+bash scripts/gen-mtls-certs.sh
+
+# Bật mTLS ở mọi service
+bash scripts/toggle-mtls.sh on
+
+# Khởi động Redis TLS
+docker compose -f docker-compose.yml -f docker-compose.mtls.yml up -d redis
+
+# Tắt (fallback về plaintext, dev)
+bash scripts/toggle-mtls.sh off
+```
+
+> **SELinux (Fedora/RHEL):** volume mount Redis cần flag `:z` (`./certs:/certs:ro,z`) để relabel context — đã cấu hình sẵn trong `docker-compose.mtls.yml`.
+
+**Giới hạn hiện tại:**
+
+- **Authn ≠ Authz**: mTLS đảm bảo "peer thuộc mesh" (cert do CA ký), **không** giới hạn "service A mới được gọi service B". Lớp authz per-service là bước tiếp theo nếu cần.
+- **Fabric ↔ Chaincode TLS** vẫn `Disabled: true` (xem §12.5).
 
 ---
 
@@ -968,28 +1041,11 @@ const [dbRevealCount, dbVoteCount, fabricRes] = await Promise.all([
 
 Các điểm có thể bổ sung để tăng cường bảo mật và hiệu năng trong triển khai thực tế:
 
-### 12.1 mTLS cho TCP nội bộ
+### 12.1 mTLS cho TCP nội bộ + Redis ✅ Đã triển khai
 
-Hiện tại TCP giữa các service không có transport-layer encryption. Trong môi trường production:
+~~Hiện tại TCP giữa các service không có transport-layer encryption.~~
 
-```typescript
-// NestJS TCP với TLS
-app.connectMicroservice<MicroserviceOptions>({
-    transport: Transport.TCP,
-    options: {
-        host,
-        port,
-        tlsOptions: {
-            key: readFileSync('service.key'),
-            cert: readFileSync('service.cert'),
-            ca: readFileSync('ca.cert'),
-            requestCert: true // mTLS: yêu cầu client cert
-        }
-    }
-})
-```
-
-Với mTLS, chỉ service có cert được CA ký mới kết nối được — ngăn service giả mạo trong mạng nội bộ bị xâm phạm.
+mTLS đã được triển khai đầy đủ cho **toàn bộ kênh nội bộ** (TCP RPC + Redis event bus + Redis cache). Xem chi tiết tại **§9.7** và `MTLS.md`.
 
 ### 12.2 Distributed Signing Node
 

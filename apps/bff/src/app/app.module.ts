@@ -1,4 +1,5 @@
 import { RedisCacheModule } from '@libs/modules/redis-cache.module'
+import { WinstonLoggerModule } from '@libs/modules/winston-logger.module'
 import { CustomValidationPipe } from '@libs/pipes/custom-validation.pipe'
 import { AuthorizationGuard } from '../infrastructure/auth/authorization.guard'
 import { Module } from '@nestjs/common'
@@ -19,6 +20,7 @@ import { CoordinatorModule } from './coordinator/app.module'
 
 @Module({
     imports: [
+        WinstonLoggerModule,
         ConfigModule.forRoot({ load: [() => CONFIGURATION] }),
         //NOTE - Giới hạn số request HTTP trong khoảng thời gian THROTTLE_TTL (ms), bỏ qua TCP
         ThrottlerModule.forRoot([

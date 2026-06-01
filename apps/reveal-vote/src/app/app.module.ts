@@ -1,3 +1,4 @@
+import { WinstonLoggerModule } from '@libs/modules/winston-logger.module'
 import { FabricClientModule } from '@libs/fabric'
 import { TcpClientModule } from '@libs/modules/tcp-client.module'
 import { EventBusModule } from '@libs/modules/event-bus.module'
@@ -17,6 +18,7 @@ import { PrismaModule } from '../infrastructure/prisma/prisma.module'
 
 @Module({
     imports: [
+        WinstonLoggerModule,
         ConfigModule.forRoot({ load: [() => CONFIGURATION] }),
         //NOTE - Giới hạn số request HTTP trong khoảng thời gian THROTTLE_TTL (ms), bỏ qua TCP
         ThrottlerModule.forRoot([

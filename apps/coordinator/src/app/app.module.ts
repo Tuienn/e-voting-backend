@@ -1,3 +1,4 @@
+import { WinstonLoggerModule } from '@libs/modules/winston-logger.module'
 import { FabricClientModule } from '@libs/fabric'
 import { RedisCacheModule } from '@libs/modules/redis-cache.module'
 import { TcpClientModule } from '@libs/modules/tcp-client.module'
@@ -18,6 +19,7 @@ import { ReconcilerModule } from './reconciler/app.module'
 
 @Module({
     imports: [
+        WinstonLoggerModule,
         ConfigModule.forRoot({ load: [() => CONFIGURATION] }),
         TcpClientModule.register([
             {

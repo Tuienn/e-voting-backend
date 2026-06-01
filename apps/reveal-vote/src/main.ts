@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston'
 import { AppModule } from './app/app.module'
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { MicroserviceOptions, Transport } from '@nestjs/microservices'
@@ -10,6 +11,10 @@ import { getServerTlsOptions } from '@libs/configuration/mtls.config'
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule)
+
+    if (!CONFIGURATION.IS_DEV) {
+        app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER))
+    }
 
     //NOTE - Cấu hình CORS
     app.enableCors({

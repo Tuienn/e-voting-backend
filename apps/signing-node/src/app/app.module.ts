@@ -1,3 +1,4 @@
+import { WinstonLoggerModule } from '@libs/modules/winston-logger.module'
 import { CustomValidationPipe } from '@libs/pipes/custom-validation.pipe'
 import { Module } from '@nestjs/common'
 import { AppController } from './app.controller'
@@ -13,7 +14,7 @@ import { CryptoModule } from '../infrastructure/crypto/crypto.module'
 import { PrismaModule } from '../infrastructure/prisma/prisma.module'
 
 @Module({
-    imports: [ConfigModule.forRoot({ load: [() => CONFIGURATION] }), PrismaModule, CryptoModule],
+    imports: [WinstonLoggerModule, ConfigModule.forRoot({ load: [() => CONFIGURATION] }), PrismaModule, CryptoModule],
     controllers: [AppController],
     providers: [
         AppService,

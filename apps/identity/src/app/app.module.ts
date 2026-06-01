@@ -1,3 +1,4 @@
+import { WinstonLoggerModule } from '@libs/modules/winston-logger.module'
 import { ExceptionFilterHandler } from '@libs/filters/exception.filter'
 import { CustomValidationPipe } from '@libs/pipes/custom-validation.pipe'
 import { Module } from '@nestjs/common'
@@ -15,6 +16,7 @@ import { PrismaModule } from '../infrastructure/prisma/prisma.module'
 
 @Module({
     imports: [
+        WinstonLoggerModule,
         ConfigModule.forRoot({ load: [() => CONFIGURATION] }),
         RedisCacheModule.register({
             ttl: CONFIGURATION.IDENTITY_CONFIG.REDIS_CACHE_TTL,

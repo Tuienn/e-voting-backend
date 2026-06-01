@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common'
 import { NestFactory } from '@nestjs/core'
+import { WINSTON_MODULE_NEST_PROVIDER } from 'nest-winston'
 import { AppModule } from './app/app.module'
 import { MicroserviceOptions, Transport } from '@nestjs/microservices'
 import { CONFIGURATION } from './configuration'
@@ -14,6 +15,10 @@ async function bootstrap() {
             tlsOptions: getServerTlsOptions() //NOTE - mTLS: bật khi MTLS_ENABLED=true, undefined => TCP thường (dev)
         }
     })
+
+    if (!CONFIGURATION.IS_DEV) {
+        app.useLogger(app.get(WINSTON_MODULE_NEST_PROVIDER))
+    }
 
     app.enableShutdownHooks() //NOTE - Kích hoạt lifecycle hook onModuleDestroy để có thể đóng kết nối TCP client khi ứng dụng tắt
 

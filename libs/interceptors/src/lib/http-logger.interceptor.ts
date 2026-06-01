@@ -140,7 +140,7 @@ export class HttpLoggerInterceptor implements NestInterceptor {
             if (process.env['NODE_ENV'] !== 'production') {
                 this.prettyPrint(logEntry)
             } else {
-                this.logger.log(JSON.stringify(logEntry))
+                this.logger.log(logEntry)
             }
 
             const result = originalEnd(...args)
