@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common'
 import { AppService } from './app.service'
 import { CreateBulkUsersDto, CreateUserDto, FilterUsersDto, UpdateUserByIdDto } from '@libs/types/identity/user.dto'
+import { SaveVoteSecretBackupDto } from '@libs/types/identity/backup.dto'
 import { ApiBody, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger'
 import { ResponseDto } from '@libs/types/response.dto'
 import { RefreshTokenDto, SignInDto } from '@libs/types/identity/auth.dto'
@@ -227,6 +228,38 @@ export class AppController {
         return new ResponseDto({
             data: result,
             message: 'Get profile successfully'
+        })
+    }
+
+    //SECTION - Identity - Vote secret backup (user đã đăng nhập tự thao tác trên dữ liệu của chính mình)
+    @Post('me/vote-secret-backup')
+    @ApiBody({
+        type: SaveVoteSecretBackupDto,
+        examples: {
+            example1: {
+                value: {
+                    payload: '{"v":1,"kdf":{"algo":"PBKDF2-SHA256","iter":100000,"salt":"..."},"enc":{...}}'
+                }
+            }
+        }
+    })
+    async saveVoteSecretBackup(@CurrentUser() user: RequestWithUser, @Body() dto: SaveVoteSecretBackupDto) {
+        const result = await this.appService.saveVoteSecretBackup({ payload: dto.payload, userId: user.userId })
+
+        return new ResponseDto({
+            data: result,
+            message: 'Vote secret backup saved successfully',
+            statusCode: HttpStatus.OK
+        })
+    }
+
+    @Get('me/vote-secret-backup')
+    async getVoteSecretBackup(@CurrentUser() user: RequestWithUser) {
+        const result = await this.appService.getVoteSecretBackup(user.userId)
+
+        return new ResponseDto({
+            data: result,
+            message: result ? 'Vote secret backup retrieved successfully' : 'No vote secret backup found'
         })
     }
 

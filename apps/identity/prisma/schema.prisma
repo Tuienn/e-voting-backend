@@ -34,3 +34,21 @@ model User {
   @@index([role])
   @@map("users")
 }
+
+// Backup các vote-secret của user. Client đã mã hóa zero-knowledge (PBKDF2(PIN,100k)+AES-GCM);
+// server bọc thêm 1 lớp mã hóa-at-rest (argon2id-derived key + AES-256-GCM) trước khi ghi DB.
+// Server KHÔNG biết PIN ⇒ không thể giải lớp client.
+model VoteSecretBackup {
+  id         String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId     String   @unique @db.ObjectId
+  cipher     String // at-rest ciphertext của envelope client (base64)
+  iv         String // server AES-256-GCM iv (base64)
+  authTag    String // server AES-256-GCM auth tag (base64)
+  serverSalt String // argon2id salt để dẫn at-rest key (base64)
+  version    Int      @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("vote_secret_backups")
+}

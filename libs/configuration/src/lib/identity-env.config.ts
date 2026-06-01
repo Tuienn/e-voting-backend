@@ -37,6 +37,10 @@ export class IdentityEnvConfiguration {
     @IsNumber()
     JWT_REFRESH_EXPIRES_IN: number
 
+    // Server-secret để dẫn khóa mã hóa-at-rest (argon2id) cho VoteSecretBackup.
+    @IsString()
+    BACKUP_SECRET: string
+
     constructor() {
         this.TCP_HOST = process.env['TCP_HOST'] || 'localhost'
         this.TCP_PORT = Number(process.env['TCP_PORT']) || 3302
@@ -50,5 +54,6 @@ export class IdentityEnvConfiguration {
         this.JWT_ACCESS_EXPIRES_IN = Number(process.env['JWT_ACCESS_EXPIRES_IN']) || 15 * 60
         this.JWT_REFRESH_SECRET = process.env['JWT_REFRESH_SECRET'] || 'default_refresh_secret'
         this.JWT_REFRESH_EXPIRES_IN = Number(process.env['JWT_REFRESH_EXPIRES_IN']) || 7 * 24 * 60 * 60
+        this.BACKUP_SECRET = process.env['BACKUP_SECRET'] || 'default_backup_secret'
     }
 }

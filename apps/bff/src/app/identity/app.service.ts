@@ -6,6 +6,7 @@ import { lastValueFrom } from 'rxjs'
 import { CONFIGURATION } from '../../configuration'
 import { COORDINATOR_MESSAGE_PATTERNS, IDENTITY_MESSAGE_PATTERNS } from '@libs/constants/message-patterns.constant'
 import { CreateBulkUsersDto, CreateUserDto, FilterUsersDto, UpdateUserByIdDto } from '@libs/types/identity/user.dto'
+import { SaveVoteSecretBackupArgs } from '@libs/types/identity/auth.type'
 
 @Injectable()
 export class AppService {
@@ -82,5 +83,14 @@ export class AppService {
 
     async signOut(dto: RefreshTokenDto) {
         return this.identityClient.send(IDENTITY_MESSAGE_PATTERNS.SIGN_OUT, dto)
+    }
+
+    //SECTION - Identity - Vote secret backup
+    async saveVoteSecretBackup(data: SaveVoteSecretBackupArgs) {
+        return lastValueFrom(this.identityClient.send(IDENTITY_MESSAGE_PATTERNS.SAVE_VOTE_SECRET_BACKUP, data))
+    }
+
+    async getVoteSecretBackup(userId: string) {
+        return lastValueFrom(this.identityClient.send(IDENTITY_MESSAGE_PATTERNS.GET_VOTE_SECRET_BACKUP, { userId }))
     }
 }

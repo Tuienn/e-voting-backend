@@ -9,6 +9,7 @@ import { TcpLoggerInterceptor } from '@libs/interceptors/tcp-logger.interceptor'
 import { CONFIGURATION } from '../configuration'
 import { UserModule } from './user/app.module'
 import { AuthModule } from './auth/app.module'
+import { BackupModule } from './backup/app.module'
 import { RedisCacheModule } from '@libs/modules/redis-cache.module'
 import { PrismaModule } from '../infrastructure/prisma/prisma.module'
 
@@ -23,7 +24,8 @@ import { PrismaModule } from '../infrastructure/prisma/prisma.module'
         }),
         PrismaModule,
         UserModule,
-        AuthModule
+        AuthModule,
+        BackupModule
     ],
     providers: [
         {

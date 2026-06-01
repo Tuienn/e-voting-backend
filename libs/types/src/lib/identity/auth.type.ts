@@ -15,3 +15,8 @@ export type RequestWithUser = {
     role: Role
     isActive: boolean
 }
+
+export type SaveVoteSecretBackupArgs = {
+    userId: string
+    payload: string
+}

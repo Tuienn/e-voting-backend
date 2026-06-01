@@ -13,7 +13,10 @@ export const IDENTITY_MESSAGE_PATTERNS = {
 
     SIGN_IN: 'auth.sign_in',
     REFRESH_TOKEN: 'auth.refresh_token',
-    SIGN_OUT: 'auth.sign_out'
+    SIGN_OUT: 'auth.sign_out',
+
+    SAVE_VOTE_SECRET_BACKUP: 'backup.save_vote_secret',
+    GET_VOTE_SECRET_BACKUP: 'backup.get_vote_secret'
 } as const
 
 export const COORDINATOR_MESSAGE_PATTERNS = {
