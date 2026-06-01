@@ -56,27 +56,48 @@
             "continuous": true,
             "executor": "nx:run-commands",
             "dependsOn": ["build-watch"],
+            "defaultConfiguration": "development",
             "options": {
-                "command": "node --watch --env-file=apps/signing-node/.node1.env dist/apps/signing-node/main.js",
+                "command": "node --watch --env-file=apps/signing-node/.node1.env.development dist/apps/signing-node/main.js",
                 "cwd": "."
+            },
+            "configurations": {
+                "development": {},
+                "production": {
+                    "command": "node --env-file=apps/signing-node/.node1.env.production dist/apps/signing-node/main.js"
+                }
             }
         },
         "serve-node2": {
             "continuous": true,
             "executor": "nx:run-commands",
             "dependsOn": ["build-watch"],
+            "defaultConfiguration": "development",
             "options": {
-                "command": "node --watch --env-file=apps/signing-node/.node2.env dist/apps/signing-node/main.js",
+                "command": "node --watch --env-file=apps/signing-node/.node2.env.development dist/apps/signing-node/main.js",
                 "cwd": "."
+            },
+            "configurations": {
+                "development": {},
+                "production": {
+                    "command": "node --env-file=apps/signing-node/.node2.env.production dist/apps/signing-node/main.js"
+                }
             }
         },
         "serve-node3": {
             "continuous": true,
             "executor": "nx:run-commands",
             "dependsOn": ["build-watch"],
+            "defaultConfiguration": "development",
             "options": {
-                "command": "node --watch --env-file=apps/signing-node/.node3.env dist/apps/signing-node/main.js",
+                "command": "node --watch --env-file=apps/signing-node/.node3.env.development dist/apps/signing-node/main.js",
                 "cwd": "."
+            },
+            "configurations": {
+                "development": {},
+                "production": {
+                    "command": "node --env-file=apps/signing-node/.node3.env.production dist/apps/signing-node/main.js"
+                }
             }
         },
         "serve": {

@@ -48,13 +48,13 @@
             "executor": "nx:run-commands",
             "defaultConfiguration": "development",
             "options": {
-                "command": "node scripts/dev-service.mjs --app identity --env-file apps/identity/.env",
+                "command": "node scripts/dev-service.mjs --app identity --env-file apps/identity/.env.development",
                 "cwd": "."
             },
             "configurations": {
                 "development": {},
                 "production": {
-                    "command": "pnpm nx run identity:build:production && node --env-file=apps/identity/.env dist/apps/identity/main.js"
+                    "command": "pnpm nx run identity:build:production && node --env-file=apps/identity/.env.production dist/apps/identity/main.js"
                 }
             }
         },

@@ -1,8 +1,11 @@
-import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common'
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common'
+import { Cron } from '@nestjs/schedule'
 import { FabricClientService } from '@libs/fabric'
-import { PrismaService } from '../../infrastructure/prisma/prisma.service'
+import { PrismaService } from '../prisma/prisma.service'
 import { CONFIGURATION } from '../../configuration'
 import { ElectionStatus, VoteStatus } from '../../../generated/prisma/enums'
+
+const RECONCILER_CRON_JOB_NAME = 'coordinator-reconciler'
 
 /**
  * Reconciler đồng bộ các record bị kẹt ở trạng thái trung gian (do process crash giữa lúc ghi DB và confirm)
@@ -11,13 +14,12 @@ import { ElectionStatus, VoteStatus } from '../../../generated/prisma/enums'
  *  - Vote.status = PENDING_CHAIN (Case 1 — SubmitVote): GetVote → có thì CONFIRMED, không thì xóa record.
  *  - Election.status = CLOSING  (Case 3 — CommitMerkleRoot): GetMerkleRoot → committed thì CLOSED, không thì về ACTIVE.
  *
- * Dùng setInterval trong OnApplicationBootstrap.
+ * Dùng @nestjs/schedule để chạy cron job nền.
  * Chỉ động vào record cũ hơn RECONCILER_STALE_MS để không tranh chấp với request đang chạy (synchronous path tự xử lý).
  */
 @Injectable()
-export class ReconcilerService implements OnApplicationBootstrap, OnModuleDestroy {
+export class ReconcilerService implements OnApplicationBootstrap {
     private readonly logger = new Logger(ReconcilerService.name)
-    private timer?: NodeJS.Timeout
     private running = false
 
     constructor(
@@ -26,19 +28,16 @@ export class ReconcilerService implements OnApplicationBootstrap, OnModuleDestro
     ) {}
 
     onApplicationBootstrap() {
-        const interval = CONFIGURATION.COORDINATOR_CONFIG.RECONCILER_INTERVAL_MS
-        this.timer = setInterval(() => void this.reconcile(), interval)
-        // unref để timer không giữ event loop khi app shutdown
-        this.timer.unref?.()
         this.logger.log(
-            `Reconciler started (interval=${interval}ms, stale=${CONFIGURATION.COORDINATOR_CONFIG.RECONCILER_STALE_MS}ms)`
+            `Reconciler scheduled (cron="${CONFIGURATION.COORDINATOR_CONFIG.RECONCILER_CRON_EXPRESSION}", stale=${CONFIGURATION.COORDINATOR_CONFIG.RECONCILER_STALE_MS}ms)`
         )
     }
 
-    onModuleDestroy() {
-        if (this.timer) clearInterval(this.timer)
-    }
-
+    @Cron(CONFIGURATION.COORDINATOR_CONFIG.RECONCILER_CRON_EXPRESSION, {
+        name: RECONCILER_CRON_JOB_NAME,
+        waitForCompletion: true,
+        unrefTimeout: true
+    })
     private async reconcile() {
         //NOTE - Chống overlap: nếu chu kỳ trước chưa xong (chain chậm) thì bỏ qua lần này
         if (this.running) return
@@ -111,18 +110,13 @@ export class ReconcilerService implements OnApplicationBootstrap, OnModuleDestro
                     .then(() => this.logger.warn(`Reconciled election ${election.id} → CLOSED`))
                     .catch((err) => this.logger.error(`Confirm election ${election.id} failed: ${err?.message}`))
             } else {
-                //NOTE - Chain CHƯA commit → rollback về ACTIVE để admin retry closeElection
-                await this.prisma.election
-                    .update({
-                        where: { id: election.id },
-                        data: { status: ElectionStatus.ACTIVE, merkleRoot: null }
-                    })
-                    .then(() =>
-                        this.logger.warn(
-                            `Reconciled election ${election.id} → rolled back ACTIVE (not committed on chain)`
-                        )
-                    )
-                    .catch((err) => this.logger.error(`Rollback election ${election.id} failed: ${err?.message}`))
+                //NOTE - Không thể phân biệt "chain chưa commit" vs "network/Chainlaunch lỗi tạm thời"
+                // vì FabricClientService.getMerkleRoot trả result:'' trong cả hai trường hợp.
+                // Rollback sai khi network lỗi → admin retry close sẽ thất bại (chain đã có root).
+                // Chỉ CONFIRM từ reconciler; rollback do synchronous path của closeElection xử lý.
+                this.logger.warn(
+                    `Election ${election.id} stuck in CLOSING — chain unreachable or root not yet committed. Skipping rollback; requires manual admin retry of closeElection.`
+                )
             }
         }
     }

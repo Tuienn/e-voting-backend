@@ -48,13 +48,13 @@
             "executor": "nx:run-commands",
             "defaultConfiguration": "development",
             "options": {
-                "command": "node scripts/dev-service.mjs --app reveal-vote --env-file apps/reveal-vote/.env",
+                "command": "node scripts/dev-service.mjs --app reveal-vote --env-file apps/reveal-vote/.env.development",
                 "cwd": "."
             },
             "configurations": {
                 "development": {},
                 "production": {
-                    "command": "pnpm nx run reveal-vote:build:production && node --env-file=apps/reveal-vote/.env dist/apps/reveal-vote/main.js"
+                    "command": "pnpm nx run reveal-vote:build:production && node --env-file=apps/reveal-vote/.env.production dist/apps/reveal-vote/main.js"
                 }
             }
         },

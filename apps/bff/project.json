@@ -45,13 +45,13 @@
             "executor": "nx:run-commands",
             "defaultConfiguration": "development",
             "options": {
-                "command": "node scripts/dev-service.mjs --app bff --env-file apps/bff/.env",
+                "command": "node scripts/dev-service.mjs --app bff --env-file apps/bff/.env.development",
                 "cwd": "."
             },
             "configurations": {
                 "development": {},
                 "production": {
-                    "command": "pnpm nx run bff:build:production && node --env-file=apps/bff/.env dist/apps/bff/main.js"
+                    "command": "pnpm nx run bff:build:production && node --env-file=apps/bff/.env.production dist/apps/bff/main.js"
                 }
             }
         },

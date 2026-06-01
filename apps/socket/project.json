@@ -48,13 +48,13 @@
             "executor": "nx:run-commands",
             "defaultConfiguration": "development",
             "options": {
-                "command": "node scripts/dev-service.mjs --app socket --env-file apps/socket/.env",
+                "command": "node scripts/dev-service.mjs --app socket --env-file apps/socket/.env.development",
                 "cwd": "."
             },
             "configurations": {
                 "development": {},
                 "production": {
-                    "command": "pnpm nx run socket:build:production && node --env-file=apps/socket/.env dist/apps/socket/main.js"
+                    "command": "pnpm nx run socket:build:production && node --env-file=apps/socket/.env.production dist/apps/socket/main.js"
                 }
             }
         },

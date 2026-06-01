@@ -1030,7 +1030,7 @@ Ghi blockchain rồi ghi MongoDB là **dual-write không atomic**: nếu DB fail
 
 **Option B — giữ chain-first + recover khi retry** (RevealVoteCompact §5.9): không đổi thứ tự; khi `revealVote` báo lỗi, query `GetUsedReveal` — nếu chain đã có revealKey thì coi là retry sau partial-fail và `create` lại DB record (`blockchainRef=null` vì `GetUsedReveal` không trả txId), unique index vẫn chặn replay thật.
 
-**Reconciler** (`apps/coordinator/src/app/reconciler`): chạy nền bằng `setInterval` (trong `OnApplicationBootstrap`), mỗi `RECONCILER_INTERVAL_MS` (mặc định 60s) quét các record kẹt **cũ hơn** `RECONCILER_STALE_MS` (mặc định 120s, tránh tranh chấp với request đang chạy):
+**Reconciler** (`apps/coordinator/src/infrastructure/reconciler`): chạy nền bằng `@nestjs/schedule` với cron `RECONCILER_CRON_EXPRESSION` (mặc định `*/1 * * * *`) để quét các record kẹt **cũ hơn** `RECONCILER_STALE_MS` (mặc định 120s, tránh tranh chấp với request đang chạy):
 
 - `Vote` còn `PENDING_CHAIN` → `GetVote`: có → `CONFIRMED`, không → xóa.
 - `Election` còn `CLOSING` → `GetMerkleRoot`: committed → `CLOSED`, không → về `ACTIVE`.

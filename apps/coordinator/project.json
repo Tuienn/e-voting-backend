@@ -48,13 +48,13 @@
             "executor": "nx:run-commands",
             "defaultConfiguration": "development",
             "options": {
-                "command": "node scripts/dev-service.mjs --app coordinator --env-file apps/coordinator/.env",
+                "command": "node scripts/dev-service.mjs --app coordinator --env-file apps/coordinator/.env.development",
                 "cwd": "."
             },
             "configurations": {
                 "development": {},
                 "production": {
-                    "command": "pnpm nx run coordinator:build:production && node --env-file=apps/coordinator/.env dist/apps/coordinator/main.js"
+                    "command": "pnpm nx run coordinator:build:production && node --env-file=apps/coordinator/.env.production dist/apps/coordinator/main.js"
                 }
             }
         },

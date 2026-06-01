@@ -34,8 +34,8 @@ export class CoordinatorEnvConfiguration {
     @IsNumber()
     REDIS_VOTE_COUNT_CACHE_TTL: number
 
-    @IsNumber()
-    RECONCILER_INTERVAL_MS: number
+    @IsString()
+    RECONCILER_CRON_EXPRESSION: string
 
     @IsNumber()
     RECONCILER_STALE_MS: number
@@ -92,7 +92,7 @@ export class CoordinatorEnvConfiguration {
 
         this.REDIS_VOTE_COUNT_CACHE_TTL = Number(process.env['REDIS_VOTE_COUNT_CACHE_TTL']) || 604800000 // 7 days
         // Reconciler đồng bộ các record kẹt PENDING_CHAIN / CLOSING với chain
-        this.RECONCILER_INTERVAL_MS = Number(process.env['RECONCILER_INTERVAL_MS']) || 60000 // chạy mỗi 60s
+        this.RECONCILER_CRON_EXPRESSION = process.env['RECONCILER_CRON_EXPRESSION'] || '*/1 * * * *' // chạy mỗi phút
         this.RECONCILER_STALE_MS = Number(process.env['RECONCILER_STALE_MS']) || 120000 // chỉ động vào record cũ hơn 120s (tránh đụng request đang chạy)
         this.REDIS_HOST = process.env['REDIS_HOST'] || 'localhost'
         this.REDIS_PORT = Number(process.env['REDIS_PORT']) || 6379

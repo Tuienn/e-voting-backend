@@ -10,7 +10,7 @@
 6. [Tối ưu throughput blockchain — Chainlaunch Batch](#6-tối-ưu-throughput-blockchain--chainlaunch-batch)
 7. [Kiểm chứng toàn vẹn dữ liệu — Merkle Tree](#7-kiểm-chứng-toàn-vẹn-dữ-liệu--merkle-tree)
 8. [Bảo mật tầng HTTP — Helmet, CORS, Rate Limiting](#8-bảo-mật-tầng-http--helmet-cors-rate-limiting)
-9. [Giao tiếp nội bộ — Microservice TCP](#9-giao-tiếp-nội-bộ--microservice-tcp)
+9. [Giao tiếp nội bộ — Microservice TCP + mTLS](#9-giao-tiếp-nội-bộ--microservice-tcp--mtls)
 10. [Bảo vệ dữ liệu tĩnh — AES-256-GCM](#10-bảo-vệ-dữ-liệu-tĩnh--aes-256-gcm)
 11. [Tối ưu hiệu năng hệ thống](#11-tối-ưu-hiệu-năng-hệ-thống)
 12. [Bổ sung đề xuất](#12-bổ-sung-đề-xuất)
@@ -450,7 +450,7 @@ Vì DB được ghi **trước**, unique index `(electionId, voterId)` chặn do
 
 > Reveal dùng Option B thay vì Write-DB-First vì revealKey là idempotency-key tự nhiên trên chain — chain tự chống trùng, nên retry an toàn mà không cần trạng thái trung gian.
 
-**Reconciler nền** (`apps/coordinator/src/app/reconciler`): xử lý ca process **crash** giữa bước ② và ③ (synchronous path chưa kịp confirm/rollback). Dùng `setInterval` trong `OnApplicationBootstrap` (không thêm dependency `@nestjs/schedule`), mỗi `RECONCILER_INTERVAL_MS` (mặc định 60s) quét record kẹt **cũ hơn** `RECONCILER_STALE_MS` (mặc định 120s — tránh tranh chấp với request đang chạy), có cờ chống overlap:
+**Reconciler nền** (`apps/coordinator/src/infrastructure/reconciler`): xử lý ca process **crash** giữa bước ② và ③ (synchronous path chưa kịp confirm/rollback). Dùng `@nestjs/schedule` với cron `RECONCILER_CRON_EXPRESSION` (mặc định `*/1 * * * *`) để quét record kẹt **cũ hơn** `RECONCILER_STALE_MS` (mặc định 120s — tránh tranh chấp với request đang chạy), có cờ chống overlap:
 
 - `Vote` còn `PENDING_CHAIN` → `GetVote`: có → `CONFIRMED` + txId; không → xóa record.
 - `Election` còn `CLOSING` → `GetMerkleRoot`: committed → `CLOSED` + recover txId/root; không → về `ACTIVE`.
@@ -880,14 +880,25 @@ libs/configuration/src/lib/mtls.config.ts
 # Sinh cert lần đầu (chạy 1 lần, CA giữ 10 năm, cert service 1 năm)
 bash scripts/gen-mtls-certs.sh
 
-# Bật mTLS ở mọi service
+# Bật mTLS ở tất cả file .env runtime (8 service)
 bash scripts/toggle-mtls.sh on
 
-# Khởi động Redis TLS
-docker compose -f docker-compose.yml -f docker-compose.mtls.yml up -d redis
+# Xem trạng thái MTLS_ENABLED từng service
+bash scripts/toggle-mtls.sh status
 
-# Tắt (fallback về plaintext, dev)
+# Tắt (fallback về plaintext — dev local)
 bash scripts/toggle-mtls.sh off
+
+# Khởi động Redis ở chế độ TLS (sau khi đã bật MTLS_ENABLED)
+docker compose -f docker-compose.yml -f docker-compose.mtls.yml up -d redis
+```
+
+**Rotation cert (hằng năm):**
+
+```bash
+# Giữ nguyên CA (ca.key + ca.crt), chỉ tái sinh cert service
+bash scripts/gen-mtls-certs.sh    # CA đã tồn tại → chỉ tái sinh cert service
+# Rolling-restart từng service — không cần downtime toàn hệ thống
 ```
 
 > **SELinux (Fedora/RHEL):** volume mount Redis cần flag `:z` (`./certs:/certs:ro,z`) để relabel context — đã cấu hình sẵn trong `docker-compose.mtls.yml`.
@@ -895,6 +906,8 @@ bash scripts/toggle-mtls.sh off
 **Giới hạn hiện tại:**
 
 - **Authn ≠ Authz**: mTLS đảm bảo "peer thuộc mesh" (cert do CA ký), **không** giới hạn "service A mới được gọi service B". Lớp authz per-service là bước tiếp theo nếu cần.
+- **`ENCRYPTION_KEY` của 3 signing node phải KHÁC nhau** ở production — nếu dùng chung thì mTLS cert tách biệt cũng không đủ để đảm bảo key share thực sự độc lập.
+- **Rollout đồng thời**: phải bật `MTLS_ENABLED=true` **cùng lúc** cả 2 đầu của một kênh (ví dụ coordinator + cả 3 signing node). Một bên TLS, một bên plaintext → kết nối bị từ chối.
 - **Fabric ↔ Chaincode TLS** vẫn `Disabled: true` (xem §12.5).
 
 ---
@@ -1085,4 +1098,4 @@ Hiện tại HTTP plaintext. Production cần terminate TLS tại nginx/load bal
 
 ### 12.7 Secret Management
 
-`ENCRYPTION_KEY`, `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `FABRIC_PASSWORD` nên được quản lý bởi **HashiCorp Vault** hoặc **AWS/GCP Secrets Manager** thay vì lưu trong `.env` file trên disk.
+`ENCRYPTION_KEY` (mỗi signing node khác nhau), `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `FABRIC_PASSWORD`, và đặc biệt là **`certs/ca.key`** (CA private key — nếu lộ, kẻ tấn công có thể cấp cert giả mạo cho mọi service trong mesh) nên được quản lý bởi **HashiCorp Vault** hoặc **AWS/GCP Secrets Manager** thay vì lưu trong `.env` file hay thư mục `certs/` trên disk. Lý tưởng nhất là giữ `ca.key` offline sau khi sinh xong cert.

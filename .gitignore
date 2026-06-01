@@ -45,7 +45,11 @@ Thumbs.db
 .claude/settings.local.json
 
 .env
+.env.development
+.env.production
 .node*.env
+.node*.env.development
+.node*.env.production
 
 # Generated Prisma client code
 /apps/*/generated/prisma
