@@ -1,5 +1,6 @@
 import { CurrentUser } from '@libs/decorators/current-user.decorator'
 import {
+    BadRequestException,
     Body,
     Controller,
     Delete,
@@ -11,10 +12,14 @@ import {
     Patch,
     Post,
     Query,
-    UnauthorizedException
+    UnauthorizedException,
+    UploadedFile,
+    UseInterceptors
 } from '@nestjs/common'
+import { FileInterceptor } from '@nestjs/platform-express'
 import { AppService } from './app.service'
 import { CreateBulkUsersDto, CreateUserDto, FilterUsersDto, UpdateUserByIdDto } from '@libs/types/identity/user.dto'
+import { read, utils } from 'xlsx'
 import { SaveVoteSecretBackupDto } from '@libs/types/identity/backup.dto'
 import { ApiBody, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger'
 import { ResponseDto } from '@libs/types/response.dto'
@@ -93,6 +98,38 @@ export class AppController {
         return new ResponseDto({
             data: result,
             message: result.count > 0 ? `${result.count} users created successfully` : 'No users created',
+            statusCode: HttpStatus.CREATED
+        })
+    }
+
+    @Roles('ADMIN')
+    @Post('user/import-excel')
+    @UseInterceptors(FileInterceptor('file'))
+    async importUsersFromExcel(@UploadedFile() file: Express.Multer.File) {
+        if (!file) {
+            throw new BadRequestException('No file uploaded')
+        }
+
+        const workbook = read(file.buffer, { type: 'buffer', codepage: 65001 })
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+        const rows = utils.sheet_to_json<Record<string, string>>(worksheet, { defval: '' })
+
+        if (!rows.length) {
+            throw new BadRequestException('Excel file is empty or has no valid data')
+        }
+
+        const data = rows.map((row) => ({
+            email: (row['email'] ?? row['Email'] ?? '').toString().trim(),
+            password: (row['password'] ?? row['Password'] ?? '').toString().trim(),
+            name: (row['name'] ?? row['Name'] ?? '').toString().trim(),
+            role: ((row['role'] ?? row['Role'] ?? '') as string).toString().trim() || undefined
+        }))
+
+        const result = (await this.appService.createBulkUsers({ data })) ?? { count: 0 }
+
+        return new ResponseDto({
+            data: result,
+            message: result.count > 0 ? `${result.count} users imported successfully` : 'No users imported',
             statusCode: HttpStatus.CREATED
         })
     }

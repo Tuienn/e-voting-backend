@@ -1,5 +1,4 @@
 import { LogFormatter } from '@libs/utils/log-formatter.util'
-import { UploadedFileLog, UploadedFilesLog } from '@libs/types/logger.type'
 import { CallHandler, ExecutionContext, Injectable, Logger, NestInterceptor } from '@nestjs/common'
 import { Request, Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
@@ -7,8 +6,8 @@ import { Observable } from 'rxjs'
 
 interface RequestWithLogMeta extends Request {
     processId?: string
-    files?: UploadedFilesLog
-    file?: UploadedFileLog
+    files?: any
+    file?: any
 }
 
 interface HttpLogEntry {
