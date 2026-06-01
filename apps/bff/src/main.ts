@@ -6,6 +6,7 @@ import { MicroserviceOptions, Transport } from '@nestjs/microservices'
 import helmet from 'helmet'
 import { getHelmetConfig } from '@libs/configuration/helmet.config'
 import { CONFIGURATION } from './configuration'
+import { getServerTlsOptions } from '@libs/configuration/mtls.config'
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule)
@@ -27,7 +28,8 @@ async function bootstrap() {
             transport: Transport.TCP,
             options: {
                 host: CONFIGURATION.BFF_CONFIG.TCP_HOST,
-                port: CONFIGURATION.BFF_CONFIG.TCP_PORT
+                port: CONFIGURATION.BFF_CONFIG.TCP_PORT,
+                tlsOptions: getServerTlsOptions() //NOTE - mTLS: bật khi MTLS_ENABLED=true, undefined => TCP thường (dev)
             }
         },
         { inheritAppConfig: true } //NOTE - Kế thừa cấu hình từ app server, nếu không có flag này, TcpLoggerInterceptor được đăng ký trong app.module.ts sẽ không bao giờ chạy khi nhận TCP message

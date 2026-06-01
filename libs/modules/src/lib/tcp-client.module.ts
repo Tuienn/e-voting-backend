@@ -1,10 +1,12 @@
 import { DynamicModule, Global, Module } from '@nestjs/common'
 import { ClientsModule, Transport } from '@nestjs/microservices'
+import { getClientTlsOptions } from '@libs/configuration/mtls.config'
 
 export type TcpClientConfig = {
     serviceName: string
     host: string
     port: number
+    tlsServerName?: string //NOTE - tên trong SAN của server cần verify (chỉ cần khi host khác SAN, vd host là IP)
 }
 
 @Global()
@@ -20,7 +22,8 @@ export class TcpClientModule {
                         transport: Transport.TCP,
                         options: {
                             host: config.host,
-                            port: config.port
+                            port: config.port,
+                            tlsOptions: getClientTlsOptions(config.tlsServerName ?? config.host) //NOTE - mTLS client, undefined khi tắt
                         }
                     }))
                 )

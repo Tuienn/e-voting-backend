@@ -1,0 +1,45 @@
+# Override bật TLS/mTLS cho Redis (production).
+#
+# Dùng kèm base:
+#   docker compose -f docker-compose.yml -f docker-compose.mtls.yml up -d
+#
+# Yêu cầu: đã chạy scripts/gen-mtls-certs.sh để có ./certs/{ca.crt, redis.crt, redis.key}
+#
+# Khác base: tắt cổng plaintext (--port 0), chỉ phục vụ TLS (--tls-port 6379),
+# và --tls-auth-clients yes => BẮT client xuất trình cert do CA của mình ký (mTLS thật sự).
+services:
+    redis:
+        volumes:
+            - ./certs:/certs:ro,z  # :z relabel cho SELinux (Fedora/RHEL), cho phép container đọc file từ user home
+        command: >
+            redis-server
+            --requirepass ${REDIS_PASSWORD:-secret}
+            --maxmemory 512mb
+            --maxmemory-policy allkeys-lru
+            --appendonly yes
+            --databases 16
+            --tls-port 6379
+            --port 0
+            --tls-cert-file /certs/redis.crt
+            --tls-key-file /certs/redis.key
+            --tls-ca-cert-file /certs/ca.crt
+            --tls-auth-clients yes
+        healthcheck:
+            test:
+                [
+                    'CMD',
+                    'redis-cli',
+                    '-a',
+                    '${REDIS_PASSWORD:-secret}',
+                    '--tls',
+                    '--cacert',
+                    '/certs/ca.crt',
+                    '--cert',
+                    '/certs/redis.crt',
+                    '--key',
+                    '/certs/redis.key',
+                    'ping'
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5

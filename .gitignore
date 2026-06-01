@@ -52,3 +52,6 @@ Thumbs.db
 
 
 
+
+# mTLS certificates (private keys) - KHÔNG commit
+certs/

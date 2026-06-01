@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core'
 import { AppModule } from './app/app.module'
 import { MicroserviceOptions, Transport } from '@nestjs/microservices'
 import { CONFIGURATION } from './configuration'
+import { getRedisTlsOptions } from '@libs/configuration/mtls.config'
 
 async function bootstrap() {
     const app = await NestFactory.create(AppModule)
@@ -23,7 +24,8 @@ async function bootstrap() {
             options: {
                 host: CONFIGURATION.SOCKET_CONFIG.REDIS_HOST,
                 port: CONFIGURATION.SOCKET_CONFIG.REDIS_PORT,
-                password: CONFIGURATION.SOCKET_CONFIG.REDIS_PASSWORD
+                password: CONFIGURATION.SOCKET_CONFIG.REDIS_PASSWORD,
+                tls: getRedisTlsOptions() //NOTE - mTLS Redis consumer (ioredis), undefined khi tắt
             }
         },
         { inheritAppConfig: true } //NOTE - Kế thừa cấu hình từ app server để interceptor/filter chạy cả khi nhận event Redis

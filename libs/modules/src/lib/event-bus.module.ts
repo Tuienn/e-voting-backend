@@ -1,5 +1,6 @@
 import { DynamicModule, Global, Module } from '@nestjs/common'
 import { ClientsModule, Transport } from '@nestjs/microservices'
+import { getRedisTlsOptions } from '@libs/configuration/mtls.config'
 
 export type EventBusConfig = {
     host: string
@@ -22,7 +23,8 @@ export class EventBusModule {
                         options: {
                             host: config.host,
                             port: config.port,
-                            password: config.password
+                            password: config.password,
+                            tls: getRedisTlsOptions() //NOTE - mTLS Redis (ioredis), undefined khi tắt
                         }
                     }
                 ])
