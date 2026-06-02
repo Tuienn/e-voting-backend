@@ -51,6 +51,7 @@ Thumbs.db
 .node*.env.development
 .node*.env.production
 
+
 # Generated Prisma client code
 /apps/*/generated/prisma
 
@@ -58,3 +59,10 @@ logs/
 
 # mTLS certificates (private keys) - KHÔNG commit
 certs/
+
+# Test files
+.pids
+/scripts/load-test/results
+*.env.test
+
+

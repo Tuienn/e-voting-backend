@@ -326,7 +326,7 @@ TTL:   REDIS_VOTE_COUNT_CACHE_TTL (mặc định 7 ngày)
 | ---------------- | ----------------- | --------------------------------- |
 | Quyền tham gia   | Mở (ai cũng được) | **Được cấp phép** (permissioned)  |
 | Danh tính node   | Ẩn danh           | **X.509 Certificate** (CA-issued) |
-| Throughput       | ~15–30 TPS (PoW)  | **3000+ TPS** (PBFT/Raft)         |
+| Throughput       | ~15–30 TPS (PoW)  | **3001+ TPS** (PBFT/Raft)         |
 | Latency finality | 6–60 giây         | **< 1 giây** (deterministic)      |
 | Chi phí          | Gas fee           | **Không có** (private infra)      |
 | Dữ liệu nhạy cảm | Public            | **Có thể private qua channels**   |
@@ -761,13 +761,13 @@ Tất cả service nội bộ giao tiếp qua **NestJS TCP transport** — khôn
 ### 9.2 Kiến trúc isolation
 
 ```
-Internet → BFF (:3000) → [mTLS TCP] → Identity (:3302)
+Internet → BFF (:3001) → [mTLS TCP] → Identity (:3302)
                        → [mTLS TCP] → Coordinator (:3303)
                                          → [mTLS TCP] → Signing Node 1 (:3304)
                                          → [mTLS TCP] → Signing Node 2 (:3305)
                                          → [mTLS TCP] → Signing Node 3 (:3306)
 
-Voter (anonymous) → Reveal-Vote (:3308) → [mTLS TCP] → Coordinator
+Voter (anonymous) → Reveal-Vote (:3007) → [mTLS TCP] → Coordinator
                                          → [mTLS TCP] → Identity
 
 Coordinator / BFF / Identity / Reveal-Vote / Socket → [mTLS] → Redis (event bus + cache)

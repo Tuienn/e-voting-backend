@@ -200,6 +200,7 @@ export class AppService {
 
     async createBulkUsers(dto: CreateBulkUsersDto) {
         const emails = dto.data.map((item) => item.email)
+
         const existingUsers = await this.prisma.user.findMany({
             where: {
                 email: {
@@ -210,31 +211,27 @@ export class AppService {
                 email: true
             }
         })
+
         const existingEmails = new Set(existingUsers.map((user) => user.email))
 
-        // Duyệt qua dto.data một lần, vừa lọc vừa hash password
-        const newDtos: { email: string; name: string; password: string; role: Role }[] = []
-        for (const item of dto.data) {
-            if (!existingEmails.has(item.email)) {
-                const hashedPassword = await hash(item.password)
-                newDtos.push({
+        const newDtos = await Promise.all(
+            dto.data
+                .filter((item) => !existingEmails.has(item.email))
+                .map(async (item) => ({
                     email: item.email,
                     name: item.name,
-                    password: hashedPassword,
+                    password: await hash(item.password),
                     role: item.role as Role
-                })
-            }
-        }
+                }))
+        )
 
         if (newDtos.length === 0) {
             return { count: 0 }
         }
 
-        const data = await this.prisma.user.createMany({
+        return this.prisma.user.createMany({
             data: newDtos
         })
-
-        return data
     }
 
     async getUsersByMongoIds(dto: MongoIdsDto & RoleDto) {

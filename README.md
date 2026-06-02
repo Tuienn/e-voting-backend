@@ -34,7 +34,7 @@ Client Web / Admin Web
         │ HTTP/REST (JWT Bearer Token)
         ▼
 ┌──────────────────────────────────────────────────┐
-│                  BFF (:3000 HTTP, :3301 TCP)     │
+│                  BFF (:3001 HTTP, :3301 TCP)     │
 │  - Xác thực JWT                                  │
 │  - Rate limiting (Throttler)                     │
 │  - Proxy request → Identity / Coordinator        │
@@ -57,7 +57,7 @@ Client Web / Admin Web
      │ (:3304)    │  │ (:3305)    │  │  (:3306)        │
      └────────────┘  └────────────┘  └─────────────────┘
 
-Client (anonymous) ─── HTTP ──→ Reveal-Vote (:3308 HTTP, :3307 TCP)
+Client (anonymous) ─── HTTP ──→ Reveal-Vote (:3007 HTTP, :3307 TCP)
                                    │ TCP → Coordinator
                                    │ TCP → Identity
                                    │ HTTP → Chainlaunch
@@ -71,13 +71,13 @@ Client (anonymous) ─── HTTP ──→ Reveal-Vote (:3308 HTTP, :3307 TCP)
 
 | Service          | Giao thức    | Port mặc định             | Vai trò                                      |
 | ---------------- | ------------ | ------------------------- | -------------------------------------------- |
-| `bff`            | HTTP + TCP   | HTTP `:3000`, TCP `:3301` | Gateway duy nhất nhận request từ web client  |
+| `bff`            | HTTP + TCP   | HTTP `:3001`, TCP `:3301` | Gateway duy nhất nhận request từ web client  |
 | `identity`       | TCP only     | `:3302`                   | Quản lý user, auth, phát hành JWT            |
 | `coordinator`    | TCP only     | `:3303`                   | Quản lý election, điều phối voting & signing |
 | `signing-node-1` | TCP only     | `:3304`                   | Ký partial EC-Schnorr node 1                 |
 | `signing-node-2` | TCP only     | `:3305`                   | Ký partial EC-Schnorr node 2                 |
 | `signing-node-3` | TCP only     | `:3306`                   | Ký partial EC-Schnorr node 3                 |
-| `reveal-vote`    | HTTP + TCP   | HTTP `:3308`, TCP `:3307` | Giải mù phiếu, kiểm phiếu, audit             |
+| `reveal-vote`    | HTTP + TCP   | HTTP `:3007`, TCP `:3307` | Giải mù phiếu, kiểm phiếu, audit             |
 | `MongoDB`        | MongoDB wire | `:27017`                  | Database chung (replica set rs0)             |
 | `Redis`          | Redis        | `:6379`                   | Cache session bỏ phiếu, vote count           |
 | `Chainlaunch`    | HTTP REST    | `:8100`                   | Hyperledger Fabric API gateway               |
@@ -153,14 +153,14 @@ Client (Web/Admin) chỉ giao tiếp với `bff` qua HTTP. Mọi request đều 
 4. **AuthenticatorGuard** — verify JWT access token (trừ route `@Public()`)
 5. **AuthorizationGuard** — kiểm tra `@Roles('ADMIN')` hoặc `@Roles('VOTER')`
 
-- **Base URL:** `http://localhost:3000/api/v1`
-- **Swagger UI:** `http://localhost:3000/api/v1/docs`
+- **Base URL:** `http://localhost:3001/api/v1`
+- **Swagger UI:** `http://localhost:3001/api/v1/docs`
 
 ### 3.3 Giao tiếp Client ↔ Reveal-Vote (HTTP REST, anonymous)
 
 Endpoint reveal của `reveal-vote` nhận request trực tiếp từ voter mà **không yêu cầu JWT**. Đây là thiết kế cố ý: server không biết voter nào đang reveal phiếu nào, bảo vệ tính ẩn danh.
 
-- **Base URL:** `http://localhost:3308/reveal-vote`
+- **Base URL:** `http://localhost:3007/reveal-vote`
 
 ---
 
@@ -742,7 +742,7 @@ BFF → Client: 200 OK
 Sau khi election đóng, voter gửi chữ ký Schnorr đã unblind lên endpoint **ẩn danh**.
 
 ```
-POST http://localhost:3308/reveal-vote/:electionId/reveal
+POST http://localhost:3007/reveal-vote/:electionId/reveal
 Public (không JWT)
 Body: { candidateIds: ["id1", "id2"], h, sPrime }
 ```
@@ -872,7 +872,7 @@ BFF → Client: chi tiết kết quả từng bước
 ### 5.11 Xem kết quả bầu cử (Tally Result)
 
 ```
-GET http://localhost:3308/reveal-vote/:electionId/tally
+GET http://localhost:3007/reveal-vote/:electionId/tally
 Public
 ```
 
@@ -903,7 +903,7 @@ Client: kết quả có thể kiểm chứng chéo DB ↔ Blockchain
 **Audit so sánh số phiếu:**
 
 ```
-GET http://localhost:3308/reveal-vote/:electionId/audit
+GET http://localhost:3007/reveal-vote/:electionId/audit
 
 Reveal-Vote, song song:
   1. count(revealedVote where electionId) từ DB
