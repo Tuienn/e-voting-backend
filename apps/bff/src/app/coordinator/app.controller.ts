@@ -30,7 +30,7 @@ export class AppController {
     constructor(private readonly appService: AppService) {}
 
     //SECTION - Coordinator - Election
-    @Public()
+    @Roles('ADMIN')
     @Get('election/filter')
     @ApiQuery({ name: 'name', required: false, type: String })
     @ApiQuery({ name: 'status', required: false, type: String, enum: ['PENDING', 'ACTIVE', 'CLOSED', 'COMPLETED'] })

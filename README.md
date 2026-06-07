@@ -269,7 +269,7 @@ Collection: revealed_votes
     h:      String,         // scalar hex 64 chars
     sPrime: String          // scalar hex 64 chars
   },
-  blockchainRef: String?,   // Fabric txID của RevealVoteCompact (null khi record được phục hồi qua Option B, xem §5.9)
+  blockchainRef: String?,   // Fabric txID của RevealVoteCompact (null khi record cũ được phục hồi qua Option B mà chưa lưu txId, xem §5.9)
   revealedAt:    DateTime
 }
 Unique: (electionId, revealKey)
@@ -790,11 +790,12 @@ Reveal-Vote
   │   Nếu invoke ném lỗi → query GetUsedReveal(electionId, revealKey):
   │     • chain CHƯA có revealKey → lỗi thật, ném tiếp
   │     • chain ĐÃ có (candidateIds khớp) → retry sau partial-fail:
-  │         blockchainRef = null (GetUsedReveal không trả txId), đi tiếp xuống create
+  │         blockchainRef = used.transactionId || null
+  │         (GetUsedReveal trả txId gốc được lưu on-chain; null với record cũ chưa có txId)
   │
   │ MongoDB: revealedVote.create {
   │   electionId, candidateIds, revealKey,
-  │   signature: { h, sPrime }, blockchainRef   // null nếu là record phục hồi
+  │   signature: { h, sPrime }, blockchainRef   // txId gốc nếu có, null với record cũ
   │ }
   │ Unique(electionId, revealKey):
   │   - create OK  → ghi/phục hồi thành công
@@ -1028,7 +1029,7 @@ Ghi blockchain rồi ghi MongoDB là **dual-write không atomic**: nếu DB fail
 3. Chain OK → confirm DB (`CONFIRMED` / `CLOSED` + `blockchainRef=txId`).
 4. Chain ném lỗi → **query chain để phân định** (`GetVote` / `GetMerkleRoot`): đã lên chain → confirm (recover txId); chưa lên chain → rollback (xóa vote PENDING / đưa election về `ACTIVE`) rồi ném lỗi.
 
-**Option B — giữ chain-first + recover khi retry** (RevealVoteCompact §5.9): không đổi thứ tự; khi `revealVote` báo lỗi, query `GetUsedReveal` — nếu chain đã có revealKey thì coi là retry sau partial-fail và `create` lại DB record (`blockchainRef=null` vì `GetUsedReveal` không trả txId), unique index vẫn chặn replay thật.
+**Option B — giữ chain-first + recover khi retry** (RevealVoteCompact §5.9): không đổi thứ tự; khi `revealVote` báo lỗi, query `GetUsedReveal` — nếu chain đã có revealKey thì coi là retry sau partial-fail và `create` lại DB record với `blockchainRef = used.transactionId || null` (`GetUsedReveal` trả txId gốc được lưu on-chain bởi `RevealVoteCompact`; null với record cũ chưa lưu txId), unique index vẫn chặn replay thật.
 
 **Reconciler** (`apps/coordinator/src/infrastructure/reconciler`): chạy nền bằng `@nestjs/schedule` với cron `RECONCILER_CRON_EXPRESSION` (mặc định `*/1 * * * *`) để quét các record kẹt **cũ hơn** `RECONCILER_STALE_MS` (mặc định 120s, tránh tranh chấp với request đang chạy):
 

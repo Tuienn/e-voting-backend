@@ -157,10 +157,12 @@ export class AppService {
                 throw new ConflictException('Reveal key already used for different candidates on chain')
             }
 
-            //NOTE - Recover: GetUsedReveal KHÔNG trả txId nên blockchainRef = null. Bước create bên dưới sẽ:
+            //NOTE - Recover: GetUsedReveal trả transactionId của lần invoke gốc (được lưu on-chain).
+            // blockchainRef = txId nếu có, null nếu record cũ chưa lưu txId (backward compat).
+            // Bước create bên dưới sẽ:
             // - thành công nếu DB chưa có record (đúng ca partial-fail) → phiếu được phục hồi
             // - ném P2002 nếu DB đã có (replay thật) → "This vote has already been revealed"
-            blockchainRef = null
+            blockchainRef = used.transactionId || null
         }
 
         //SECTION - Ghi DB chống anti-replay. @@unique([electionId, revealKey]) vừa chống replay vừa đảm bảo idempotent recovery.
@@ -235,9 +237,11 @@ export class AppService {
         const chainData = fabricRes.result ? JSON.parse(fabricRes.result) : null
 
         return {
-            electionId: dto.id,
-            electionName: existElection.name,
-            status: existElection.status,
+            election: {
+                id: dto.id,
+                name: existElection.name,
+                status: existElection.status
+            },
             db: {
                 voteCount: dbVoteCount,
                 revealCount: dbRevealVoteCount
@@ -317,9 +321,14 @@ export class AppService {
         const chainRevealedBallots = chainAudit?.revealCount ?? 0
 
         return {
-            electionId: dto.id,
-            electionName: existElection.name,
-            status: existElection.status,
+            election: {
+                id: dto.id,
+                name: existElection.name,
+                status: existElection.status,
+                startDate: existElection.startDate,
+                endDate: existElection.endDate
+            },
+            //NOTE - Tally result theo từng candidate, đồng thời cộng dồn TỔNG LƯỢT CHỌN (selections) 2 phía.
             tallyResult,
             //NOTE - 4 con số tách bạch:
             // - revealedBallots = SỐ PHIẾU đã reveal (mỗi lá phiếu đếm đúng 1 lần)

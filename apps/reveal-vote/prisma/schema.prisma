@@ -28,7 +28,7 @@ model RevealedVote {
     candidateIds String[] @db.ObjectId
 
     revealKey String
-    // Option B recovery: khi retry sau partial-fail (chain đã có revealKey nhưng DB chưa ghi),
+    // recovery: khi retry sau partial-fail (chain đã có revealKey nhưng DB chưa ghi),
     // GetUsedReveal KHÔNG trả txId nên blockchainRef có thể null cho record được phục hồi
     blockchainRef   String?
     signature SignatureRevealedVote

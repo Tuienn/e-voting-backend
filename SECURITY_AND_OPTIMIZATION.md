@@ -446,7 +446,7 @@ Vì DB được ghi **trước**, unique index `(electionId, voterId)` chặn do
 **Giải pháp 2 — Option B (giữ chain-first + tự phục hồi khi retry)** cho `RevealVoteCompact`: không đổi thứ tự (chain trước, DB sau). Khi `revealVote` invoke ném lỗi, query `GetUsedReveal(electionId, revealKey)`:
 
 - Chain **chưa** có `revealKey` → lỗi thật, ném tiếp.
-- Chain **đã** có (và `candidateIds` khớp) → đây là retry sau partial-fail → `create` lại record DB với `blockchainRef = null` (`GetUsedReveal` không trả txId). Unique index `(electionId, revealKey)` vẫn ném `P2002` nếu DB đã có record ⇒ replay thật vẫn bị chặn, chỉ phục hồi khi DB còn trống.
+- Chain **đã** có (và `candidateIds` khớp) → đây là retry sau partial-fail → `create` lại record DB với `blockchainRef = used.transactionId || null`. `GetUsedReveal` trả `transactionId` của transaction gốc (được lưu on-chain bởi `RevealVoteCompact` qua `ctx.GetStub().GetTxID()`); record cũ chưa lưu txId thì `blockchainRef = null` (tương thích ngược). Unique index `(electionId, revealKey)` vẫn ném `P2002` nếu DB đã có record ⇒ replay thật vẫn bị chặn, chỉ phục hồi khi DB còn trống.
 
 > Reveal dùng Option B thay vì Write-DB-First vì revealKey là idempotency-key tự nhiên trên chain — chain tự chống trùng, nên retry an toàn mà không cần trạng thái trung gian.
 
