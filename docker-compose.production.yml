@@ -1,0 +1,414 @@
+name: e-voting-production
+
+x-app-defaults: &app-defaults
+    restart: unless-stopped
+    init: true
+    group_add:
+        - ${CERT_GROUP_ID:-1000}
+    networks:
+        - e-voting
+
+x-tcp-healthcheck: &tcp-healthcheck
+    interval: 10s
+    timeout: 5s
+    retries: 10
+    start_period: 20s
+
+services:
+    mongo:
+        image: ${MONGO_IMAGE:-mongo:7}
+        restart: unless-stopped
+        networks:
+            - e-voting
+        environment:
+            MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-user}
+            MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-password}
+        volumes:
+            - mongo_data:/data/db
+            - mongo_keyfile:/data/keyfile
+        ulimits:
+            nofile:
+                soft: 64000
+                hard: 64000
+        entrypoint:
+            - bash
+            - -c
+            - |
+                if [ ! -f /data/keyfile/mongo-keyfile ]; then
+                  openssl rand -base64 756 > /data/keyfile/mongo-keyfile
+                  chmod 400 /data/keyfile/mongo-keyfile
+                  chown 999:999 /data/keyfile/mongo-keyfile
+                fi
+                exec docker-entrypoint.sh mongod --replSet rs0 --bind_ip_all --keyFile /data/keyfile/mongo-keyfile
+        healthcheck:
+            test:
+                [
+                    'CMD-SHELL',
+                    'mongosh --quiet -u "$$MONGO_INITDB_ROOT_USERNAME" -p "$$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --eval "quit(db.adminCommand(''ping'').ok ? 0 : 1)"'
+                ]
+            interval: 10s
+            timeout: 10s
+            retries: 10
+            start_period: 30s
+
+    mongo-init:
+        image: ${MONGO_IMAGE:-mongo:7}
+        restart: 'no'
+        networks:
+            - e-voting
+        depends_on:
+            mongo:
+                condition: service_healthy
+        environment:
+            MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-user}
+            MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-password}
+        entrypoint:
+            - bash
+            - -c
+            - |
+                mongosh --host mongo:27017 \
+                  -u "$$MONGO_INITDB_ROOT_USERNAME" \
+                  -p "$$MONGO_INITDB_ROOT_PASSWORD" \
+                  --authenticationDatabase admin \
+                  --eval '
+                    try {
+                      rs.status()
+                    } catch (error) {
+                      if (error.codeName !== "NotYetInitialized") throw error
+                      rs.initiate({
+                        _id: "rs0",
+                        members: [{ _id: 0, host: "mongo:27017" }]
+                      })
+                    }
+                  '
+
+                until mongosh --quiet --host mongo:27017 \
+                  -u "$$MONGO_INITDB_ROOT_USERNAME" \
+                  -p "$$MONGO_INITDB_ROOT_PASSWORD" \
+                  --authenticationDatabase admin \
+                  --eval 'quit(db.hello().isWritablePrimary ? 0 : 1)'; do
+                  sleep 2
+                done
+
+    redis:
+        image: ${REDIS_IMAGE:-redis:7.2-alpine}
+        restart: unless-stopped
+        networks:
+            - e-voting
+        group_add:
+            - ${CERT_GROUP_ID:-1000}
+        command: >
+            redis-server
+            --requirepass ${REDIS_PASSWORD:-12345QTqt@}
+            --maxmemory 512mb
+            --maxmemory-policy allkeys-lru
+            --appendonly yes
+            --databases 16
+            --tls-port 6379
+            --port 0
+            --tls-cert-file /certs/redis.crt
+            --tls-key-file /certs/redis.key
+            --tls-ca-cert-file /certs/ca.crt
+            --tls-auth-clients yes
+        volumes:
+            - redis_data:/data
+            - ./certs/ca.crt:/certs/ca.crt:ro
+            - ./certs/redis.crt:/certs/redis.crt:ro
+            - ./certs/redis.key:/certs/redis.key:ro
+        healthcheck:
+            test:
+                [
+                    'CMD-SHELL',
+                    'redis-cli -a "$${REDIS_PASSWORD:-12345QTqt@}" --tls --cacert /certs/ca.crt --cert /certs/redis.crt --key /certs/redis.key ping | grep -q PONG'
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 10
+            start_period: 20s
+
+    identity:
+        <<: *app-defaults
+        image: ${APP_IMAGE_REPO_PREFIX:-e-voting/}identity:${IMAGE_TAG:-latest}
+        build:
+            context: .
+            dockerfile: Dockerfile
+            args:
+                APP: identity
+        env_file:
+            - apps/identity/.env.production
+        volumes:
+            - ./certs/ca.crt:/app/certs/ca.crt:ro
+            - ./certs/identity.crt:/app/certs/identity.crt:ro
+            - ./certs/identity.key:/app/certs/identity.key:ro
+            - identity_logs:/app/logs
+        expose:
+            - '3302'
+        depends_on:
+            mongo-init:
+                condition: service_completed_successfully
+            redis:
+                condition: service_healthy
+        healthcheck:
+            <<: *tcp-healthcheck
+            test:
+                [
+                    'CMD',
+                    '/nodejs/bin/node',
+                    '-e',
+                    "const s=require('net').connect(3302,'127.0.0.1',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),3000)"
+                ]
+
+    signing-node-1:
+        <<: *app-defaults
+        image: ${APP_IMAGE_REPO_PREFIX:-e-voting/}signing-node:${IMAGE_TAG:-latest}
+        build:
+            context: .
+            dockerfile: Dockerfile
+            args:
+                APP: signing-node
+        env_file:
+            - apps/signing-node/.node1.env.production
+        volumes:
+            - ./certs/ca.crt:/app/certs/ca.crt:ro
+            - ./certs/signing-node-1.crt:/app/certs/signing-node-1.crt:ro
+            - ./certs/signing-node-1.key:/app/certs/signing-node-1.key:ro
+            - signing_node_1_logs:/app/logs
+        expose:
+            - '3304'
+        depends_on:
+            mongo-init:
+                condition: service_completed_successfully
+            redis:
+                condition: service_healthy
+        healthcheck:
+            <<: *tcp-healthcheck
+            test:
+                [
+                    'CMD',
+                    '/nodejs/bin/node',
+                    '-e',
+                    "const s=require('net').connect(3304,'127.0.0.1',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),3000)"
+                ]
+
+    signing-node-2:
+        <<: *app-defaults
+        image: ${APP_IMAGE_REPO_PREFIX:-e-voting/}signing-node:${IMAGE_TAG:-latest}
+        env_file:
+            - apps/signing-node/.node2.env.production
+        volumes:
+            - ./certs/ca.crt:/app/certs/ca.crt:ro
+            - ./certs/signing-node-2.crt:/app/certs/signing-node-2.crt:ro
+            - ./certs/signing-node-2.key:/app/certs/signing-node-2.key:ro
+            - signing_node_2_logs:/app/logs
+        expose:
+            - '3305'
+        depends_on:
+            mongo-init:
+                condition: service_completed_successfully
+            redis:
+                condition: service_healthy
+            signing-node-1:
+                condition: service_started
+        healthcheck:
+            <<: *tcp-healthcheck
+            test:
+                [
+                    'CMD',
+                    '/nodejs/bin/node',
+                    '-e',
+                    "const s=require('net').connect(3305,'127.0.0.1',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),3000)"
+                ]
+
+    signing-node-3:
+        <<: *app-defaults
+        image: ${APP_IMAGE_REPO_PREFIX:-e-voting/}signing-node:${IMAGE_TAG:-latest}
+        env_file:
+            - apps/signing-node/.node3.env.production
+        volumes:
+            - ./certs/ca.crt:/app/certs/ca.crt:ro
+            - ./certs/signing-node-3.crt:/app/certs/signing-node-3.crt:ro
+            - ./certs/signing-node-3.key:/app/certs/signing-node-3.key:ro
+            - signing_node_3_logs:/app/logs
+        expose:
+            - '3306'
+        depends_on:
+            mongo-init:
+                condition: service_completed_successfully
+            redis:
+                condition: service_healthy
+            signing-node-1:
+                condition: service_started
+        healthcheck:
+            <<: *tcp-healthcheck
+            test:
+                [
+                    'CMD',
+                    '/nodejs/bin/node',
+                    '-e',
+                    "const s=require('net').connect(3306,'127.0.0.1',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),3000)"
+                ]
+
+    coordinator:
+        <<: *app-defaults
+        image: ${APP_IMAGE_REPO_PREFIX:-e-voting/}coordinator:${IMAGE_TAG:-latest}
+        build:
+            context: .
+            dockerfile: Dockerfile
+            args:
+                APP: coordinator
+        env_file:
+            - apps/coordinator/.env.production
+        extra_hosts:
+            - host.docker.internal:host-gateway
+        volumes:
+            - ./certs/ca.crt:/app/certs/ca.crt:ro
+            - ./certs/coordinator.crt:/app/certs/coordinator.crt:ro
+            - ./certs/coordinator.key:/app/certs/coordinator.key:ro
+            - coordinator_logs:/app/logs
+        expose:
+            - '3303'
+        depends_on:
+            mongo-init:
+                condition: service_completed_successfully
+            redis:
+                condition: service_healthy
+            identity:
+                condition: service_healthy
+            signing-node-1:
+                condition: service_healthy
+            signing-node-2:
+                condition: service_healthy
+            signing-node-3:
+                condition: service_healthy
+        healthcheck:
+            <<: *tcp-healthcheck
+            test:
+                [
+                    'CMD',
+                    '/nodejs/bin/node',
+                    '-e',
+                    "const s=require('net').connect(3303,'127.0.0.1',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),3000)"
+                ]
+
+    bff:
+        <<: *app-defaults
+        image: ${APP_IMAGE_REPO_PREFIX:-e-voting/}bff:${IMAGE_TAG:-latest}
+        build:
+            context: .
+            dockerfile: Dockerfile
+            args:
+                APP: bff
+        env_file:
+            - apps/bff/.env.production
+        volumes:
+            - ./certs/ca.crt:/app/certs/ca.crt:ro
+            - ./certs/bff.crt:/app/certs/bff.crt:ro
+            - ./certs/bff.key:/app/certs/bff.key:ro
+            - bff_logs:/app/logs
+        ports:
+            - ${BFF_HTTP_PORT:-3001}:3001
+        expose:
+            - '3301'
+        depends_on:
+            redis:
+                condition: service_healthy
+            identity:
+                condition: service_healthy
+            coordinator:
+                condition: service_healthy
+        healthcheck:
+            <<: *tcp-healthcheck
+            test:
+                [
+                    'CMD',
+                    '/nodejs/bin/node',
+                    '-e',
+                    "const s=require('net').connect(3001,'127.0.0.1',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),3000)"
+                ]
+
+    reveal-vote:
+        <<: *app-defaults
+        image: ${APP_IMAGE_REPO_PREFIX:-e-voting/}reveal-vote:${IMAGE_TAG:-latest}
+        build:
+            context: .
+            dockerfile: Dockerfile
+            args:
+                APP: reveal-vote
+        env_file:
+            - apps/reveal-vote/.env.production
+        extra_hosts:
+            - host.docker.internal:host-gateway
+        volumes:
+            - ./certs/ca.crt:/app/certs/ca.crt:ro
+            - ./certs/reveal-vote.crt:/app/certs/reveal-vote.crt:ro
+            - ./certs/reveal-vote.key:/app/certs/reveal-vote.key:ro
+            - reveal_vote_logs:/app/logs
+        ports:
+            - ${REVEAL_VOTE_HTTP_PORT:-3007}:3007
+        expose:
+            - '3307'
+        depends_on:
+            mongo-init:
+                condition: service_completed_successfully
+            redis:
+                condition: service_healthy
+            identity:
+                condition: service_healthy
+            coordinator:
+                condition: service_healthy
+        healthcheck:
+            <<: *tcp-healthcheck
+            test:
+                [
+                    'CMD',
+                    '/nodejs/bin/node',
+                    '-e',
+                    "const s=require('net').connect(3007,'127.0.0.1',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),3000)"
+                ]
+
+    socket:
+        <<: *app-defaults
+        image: ${APP_IMAGE_REPO_PREFIX:-e-voting/}socket:${IMAGE_TAG:-latest}
+        build:
+            context: .
+            dockerfile: Dockerfile
+            args:
+                APP: socket
+        env_file:
+            - apps/socket/.env.production
+        volumes:
+            - ./certs/ca.crt:/app/certs/ca.crt:ro
+            - ./certs/socket.crt:/app/certs/socket.crt:ro
+            - ./certs/socket.key:/app/certs/socket.key:ro
+            - socket_logs:/app/logs
+        ports:
+            - ${SOCKET_HTTP_PORT:-3008}:3008
+        depends_on:
+            redis:
+                condition: service_healthy
+        healthcheck:
+            <<: *tcp-healthcheck
+            test:
+                [
+                    'CMD',
+                    '/nodejs/bin/node',
+                    '-e',
+                    "const s=require('net').connect(3008,'127.0.0.1',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1));setTimeout(()=>process.exit(1),3000)"
+                ]
+
+networks:
+    e-voting:
+        driver: bridge
+
+volumes:
+    mongo_data:
+    mongo_keyfile:
+    redis_data:
+    bff_logs:
+    identity_logs:
+    coordinator_logs:
+    signing_node_1_logs:
+    signing_node_2_logs:
+    signing_node_3_logs:
+    reveal_vote_logs:
+    socket_logs:

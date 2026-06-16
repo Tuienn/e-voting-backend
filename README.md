@@ -21,6 +21,7 @@
 6. [Giao tiếp với Chainlaunch (Hyperledger Fabric)](#6-giao-tiếp-với-chainlaunch-hyperledger-fabric)
 7. [Bảo mật & chống gian lận](#7-bảo-mật--chống-gian-lận)
 8. [Thư viện dùng chung (libs)](#8-thư-viện-dùng-chung-libs)
+9. [Build và chạy production bằng Docker](#9-build-và-chạy-production-bằng-docker)
 
 ---
 
@@ -1071,6 +1072,64 @@ Chain là **nguồn sự thật** để reconcile. Hệ quả: các hàm đọc 
 | `verify(msg, h, sPrime, params, pubKey)`      | Kiểm tra `h == SHA256(M ∥ C_check)`   |
 | `hexToPoint / pointToHex`                     | Encode/decode EC point (66 hex chars) |
 | `hexToScalar / scalarToHex`                   | Encode/decode scalar (64 hex chars)   |
+
+## 9. Build và chạy production bằng Docker
+
+Dockerfile dùng chung nhận build argument `APP`; Compose build 6 image và chạy 8 container ứng dụng. Ba container `signing-node-1/2/3` dùng chung image `e-voting/signing-node` nhưng nạp ba file `.nodeN.env.production` riêng.
+
+Các file `.env.production` chứa secret và đang bị Git ignore. Trước khi deploy, bảo đảm các file sau tồn tại và đã được thay secret mặc định:
+
+- `apps/{bff,identity,coordinator,reveal-vote,socket}/.env.production`
+- `apps/signing-node/.node{1,2,3}.env.production`
+
+Sinh certificate mTLS, build image và khởi động stack:
+
+```sh
+bash scripts/gen-mtls-certs.sh
+pnpm docker:build
+pnpm docker:up
+```
+
+Application image dùng Distroless Node.js và chạy bằng UID non-root `65532`. Compose cấp group của certificate cho container; nếu tài khoản deploy không dùng GID `1000`, truyền `CERT_GROUP_ID=$(id -g)` khi chạy `docker:up`.
+
+Các HTTP port được publish mặc định là BFF `3001`, Reveal Vote `3007` và Socket `3008`. MongoDB, Redis và các TCP microservice chỉ nằm trong Docker network.
+
+`coordinator` và `reveal-vote` mặc định gọi Chainlaunch qua `http://host.docker.internal:8100/api/v1`. Nếu Chainlaunch chạy trên máy khác, cập nhật `FABRIC_HOST` trong hai file production env tương ứng.
+
+Để đổi tag image hoặc port public:
+
+```sh
+IMAGE_TAG=1.0.0 BFF_HTTP_PORT=8081 pnpm docker:build
+IMAGE_TAG=1.0.0 BFF_HTTP_PORT=8081 pnpm docker:up
+```
+
+Build và push toàn bộ image production lên Docker Hub với tag `latest`:
+
+```sh
+pnpm docker:push
+```
+
+Script này build 6 application image, tag theo dạng `DOCKERHUB_USERNAME/e-voting-<service>:latest`, đồng thời mirror MongoDB và Redis thành `e-voting-mongodb:latest` và `e-voting-redis:latest` trong namespace Docker Hub của tài khoản đang login. Có thể đổi tag hoặc prefix:
+
+```sh
+VERSION=1.0.0 IMAGE_PREFIX=e-voting pnpm docker:push
+```
+
+Khi muốn chạy Compose bằng image đã push lên Docker Hub:
+
+```sh
+APP_IMAGE_REPO_PREFIX=tuienn/e-voting- \
+IMAGE_TAG=latest \
+MONGO_IMAGE=tuienn/e-voting-mongodb:latest \
+REDIS_IMAGE=tuienn/e-voting-redis:latest \
+pnpm docker:up
+```
+
+Dừng stack:
+
+```sh
+pnpm docker:down
+```
 
 [Learn more about this workspace setup and its capabilities](https://nx.dev/nx-api/nest?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
 

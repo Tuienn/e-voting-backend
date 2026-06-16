@@ -65,7 +65,9 @@ gen_cert() {
       "basicConstraints=CA:FALSE" \
       "keyUsage=digitalSignature,keyEncipherment")
   rm -f "$name.csr"
-  chmod 600 "$name.key"
+  # Production containers run as non-root UIDs and receive the certificate
+  # group as a supplemental GID. Keep keys unreadable to all other users.
+  chmod 640 "$name.key"
 }
 
 for svc in "${SERVICES[@]}"; do

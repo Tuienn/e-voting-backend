@@ -141,12 +141,11 @@ export class AppService {
             blockchainRef = fabricRes.result.transactionId
         } catch (chainErr) {
             //NOTE - Option B: revealVote invoke fail có thể là (a) lỗi thật, hoặc (b) retry sau partial-fail
-            // (lần trước chain ĐÃ ghi revealKey nhưng DB chưa kịp lưu → voter retry bị chain reject "revealKey already used").
             // Query GetUsedReveal để phân định, chain là nguồn sự thật.
             const usedRes = await this.fabricClient.getUsedReveal(dto.electionId, revealKey)
 
             if (!usedRes.result) {
-                //NOTE - chain CHƯA có revealKey → đây là lỗi thật, ném tiếp
+                //NOTE - chain CHƯA có revealKey → đây là lỗi
                 throw chainErr
             }
 
